@@ -45,12 +45,35 @@ label_names = [
 
 
 def init_weights(input_dimension,
-                 hidden_dimension,
+                 hidden_dimensions,
                  output_dimension,
+                 he=True,
                  seed=0,
                  std=0.01):
     #randomize weights with seed:
+    print("input_dimension layers shape: ", input_dimension)
+    print("hidden layers shape: ", hidden_dimensions)
+    k = len(hidden_dimensions) + 1
+    # create empty maricies for the hyhperparameters
+    W, b, gamma, beta = [None] * k, [None] * k, [None] * (k - 1), [None
+                                                                   ] * (k - 1)
+    n_nodes = [input_dimension] + hidden_dimensions + [output_dimension]
     np.random.seed(seed)
+    for layer in range(k):
+        #dimension of the layers
+        inputs = n_nodes[layer]
+        outputs = n_nodes[layer + 1]
+
+        # define standard deviation for weights and bias
+        scale = np.sqrt(1 / inputs) if he else std
+
+        #initialize weights, bias, gammas and betas
+        W[layer] = np.random.normal(size=(outputs, inputs), loc=0, scale=scale)
+        b[layer] = np.zeros((outputs, 1))
+        if layer < (k - 1):
+            gamma[layer] = np.ones((outputs, 1))
+            beta[layer] = np.zeros((outputs, 1))
+    """
     std1 = 1 / np.sqrt(input_dimension)
     std2 = 1 / np.sqrt(hidden_dimension)
 
@@ -66,9 +89,23 @@ def init_weights(input_dimension,
     #W = np.array([W1, W2], dtype=object)  # perhaps remove "object"
     #b = np.array([b1, b2], dtype=object)
     #return W, b
+    
     return W1, b1, W2, b2
+    """
+    return W, b, gamma, beta
 
 
+# test the initi weights
+input_dimension = X_train.shape[0]
+hidden_dimensions = [50, 100]
+output_dimension = Y_train.shape[0]
+W, b, gamma, beta = init_weights(input_dimension, hidden_dimensions,
+                                 output_dimension)
+print("W shape ", W)
+print("b shape: ", np.shape(b))
+print("gamma shape: ", np.shape(gamma))
+print("beta shape: ", np.shape(beta))
+quit()
 """
 input_dimension = X_train.shape[0]
 hidden_dimension = 50
@@ -99,7 +136,14 @@ def relu(x):
     return np.maximum(0, x)
 
 
-def EvaluateClassifier(X, W_1, b_1, W_2, b_2):
+def EvaluateClassifier(X,
+                       W,
+                       b,
+                       gamma=None,
+                       beta=None,
+                       mean=None,
+                       variance=None,
+                       batch_normalization=False):
     #Two layer NN. Relu --> softmax Softmax acitvation function for two layer NN
     s_1 = W_1 @ X + b_1
     h = relu(s_1)
@@ -136,6 +180,16 @@ def ComputeAccuracy(X_c, y_c, W1, b1, W2, b2):
     probabilities, hidden_activation = EvaluateClassifier(X_c, W1, b1, W2, b2)
     acc = np.mean(y_c == np.argmax(probabilities, 0))
     return acc
+
+
+def BatchNormBackPass(G_batch, S_batch, mean, variance):
+    N = S_batch.shape[1]
+    G1 = G_batch * (((variance + 1e-15)**(-0.5)) @ np.ones((1, N)))
+    G2 = G_batch * (((variance + 1e-15)**(-1.5)) @ np.ones((1, N)))
+    D = S_batch - mean @ np.ones((1, N))
+    c = (G2 * D) @ np.ones((N, 1))
+
+    return G1 - (G1 @ np.ones((N, 1))) / N - D * (c @ np.ones((1, N))) / N
 
 
 def ComputeGradients(X_b, Y_b, p, h, W_1, W_2, lamb):
