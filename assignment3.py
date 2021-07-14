@@ -95,7 +95,8 @@ def init_weights(input_dimension,
     return W, b, gamma, beta
 
 
-# test the initi weights
+"""
+# test the weights, bias, gamma and beta values (dimensions)
 input_dimension = X_train.shape[0]
 hidden_dimensions = [50, 100]
 output_dimension = Y_train.shape[0]
@@ -105,7 +106,22 @@ print("W shape ", W)
 print("b shape: ", np.shape(b))
 print("gamma shape: ", np.shape(gamma))
 print("beta shape: ", np.shape(beta))
+print("len(W): ", len(W))
+print("len(b): ", len(b))
+print("len(gamma): ", len(gamma))
+print("len(beta): ", len(beta))
+print("layer 1 weights shape: ", W[0].shape)
+print("layer 2 weights shape: ", W[1].shape)
+print("layer 1 bias shape: ", b[0].shape)
+print("layer 2 bias shape: ", b[1].shape)
+
+print("layer 1 gamma shape: ", gamma[0].shape)
+print("layer 2 gamma shape: ", gamma[1].shape)
+print("layer 1 beta shape: ", beta[0].shape)
+print("layer 2 beta shape: ", beta[1].shape)
+
 quit()
+"""
 """
 input_dimension = X_train.shape[0]
 hidden_dimension = 50
@@ -145,6 +161,7 @@ def EvaluateClassifier(X,
                        variance=None,
                        batch_normalization=False):
     #Two layer NN. Relu --> softmax Softmax acitvation function for two layer NN
+    k = len(W)  # number of layers
     s_1 = W_1 @ X + b_1
     h = relu(s_1)
     s = W_2 @ h + b_2
