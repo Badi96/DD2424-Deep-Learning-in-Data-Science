@@ -1,5 +1,8 @@
+from typing import NewType
 import numpy as np
 import pickle
+
+from numpy.lib.function_base import kaiser
 from functions import *
 import sys
 import matplotlib.pyplot as plt
@@ -50,13 +53,41 @@ def init_weights(input_dimension,
                  he=True,
                  seed=0,
                  std=0.01):
+    k = len(hidden_dimensions) + 1
+    W, b, gamma, beta = [None] * k, [None] * k, [None] * (k - 1), [None
+                                                                   ] * (k - 1)
+    n_nodes = [input_dimension] + hidden_dimensions + [output_dimension]
+
+    # Define random seed and iterate layers
+    np.random.seed(seed)
+    for l in range(k):
+
+        # Define dimensions of the layer
+        inputs = n_nodes[l]
+        outputs = n_nodes[l + 1]
+
+        # Define standard deviation for random weights and bias normal distribution
+        scale = np.sqrt(2 / inputs) if he else std
+
+        # Initialize weights, bias, gammas and betas
+        W[l] = np.random.normal(size=(outputs, inputs), loc=0, scale=scale)
+        b[l] = np.zeros((outputs, 1))
+        if l < (k - 1):
+            gamma[l] = np.ones((outputs, 1))
+            beta[l] = np.zeros((outputs, 1))
+    print("W shape: ", np.shape(W))
+    print("W len: ", len(W))
+    print("b shae: ", len(b))
     #randomize weights with seed:
+    """
     print("input_dimension layers shape: ", input_dimension)
     print("hidden layers shape: ", hidden_dimensions)
     k = len(hidden_dimensions) + 1
+    print("k has shaaape:", k)
     # create empty maricies for the hyhperparameters
     W, b, gamma, beta = [None] * k, [None] * k, [None] * (k - 1), [None
                                                                    ] * (k - 1)
+
     n_nodes = [input_dimension] + hidden_dimensions + [output_dimension]
     np.random.seed(seed)
     for layer in range(k):
@@ -73,6 +104,8 @@ def init_weights(input_dimension,
         if layer < (k - 1):
             gamma[layer] = np.ones((outputs, 1))
             beta[layer] = np.zeros((outputs, 1))
+
+    """
     """
     std1 = 1 / np.sqrt(input_dimension)
     std2 = 1 / np.sqrt(hidden_dimension)
@@ -152,137 +185,504 @@ def relu(x):
     return np.maximum(0, x)
 
 
-def EvaluateClassifier(X,
-                       W,
-                       b,
-                       gamma=None,
-                       beta=None,
-                       mean=None,
-                       variance=None,
-                       batch_normalization=False):
+def EvaluateClassifier(
+    X,
+    W,
+    b,
+    gamma=None,
+    beta=None,
+    mean=None,
+    variance=None,
+    batch_normalization=False,
+):
     #Two layer NN. Relu --> softmax Softmax acitvation function for two layer NN
-    k = len(W)  # number of layers
-    s_1 = W_1 @ X + b_1
-    h = relu(s_1)
-    s = W_2 @ h + b_2
-    p = softmax(s)
-    return p, h
+    print("W type: ", type(W))
+    print("W shape: ", np.shape(W))
+    print("W contains: ", W)
+
+    #k = len(W)  # number of layers
+    k = len(W)
+    #k = np.shape(W)
+    #print("K is:: ", k)
+    #print("K has type: ", type(k))
+    X_layers, S, S_BN = [X.copy()] + [None] * (k - 1), [None] * (
+        k - 1), [None] * (k - 1)
+    if batch_normalization == True:
+        if mean is None and variance is None:
+            return_mean_var = True
+            mean, variance = [None] * (k - 1), [None] * (k - 1)
+        else:
+            return_mean_var = False
+    # Iterate through hidden layers
+    for l in range(k - 1):
+        S[l] = W[l] @ X_layers[l] + b[l]
+        if batch_normalization == True:
+            # (can remove return mean...)
+            if return_mean_var == True:
+                mean[l] = S[l].mean(axis=1).reshape(-1, 1)
+                variance[l] = S[l].var(axis=1).reshape(-1, 1)
+            S_BN[l] = (S[l] - mean[l]) / (np.sqrt(variance[l] + 1e-15))
+            S_BatchNorm_Scaled = S_BN[l] * gamma[l] + beta[l]
+            X_layers[l + 1] = relu(S_BatchNorm_Scaled)
+        else:
+            X_layers[l + 1] = relu(S[l])
+
+    # Output layer
+    P = softmax(W[k - 1] @ X_layers[k - 1] + b[k - 1])
+
+    if batch_normalization:
+        if return_mean_var:
+            return P, S_BN, S, X_layers[1:], mean, variance
+        else:
+            return P, S_BN, S, X_layers[1:]
+    else:
+        return P, X_layers[1:]
+
+    #s_1 = W_1 @ X + b_1
+    #h = relu(s_1)
+    #s = W_2 @ h + b_2
+    #p = softmax(s)
+    #return p, h
 
 
-def compute_loss(X_c, Y, W1, b1, W2, b2, lmbda):
+"""
+# --------------------- test EvaluateClassifier-----------------------
+# test the weights, bias, gamma and beta values (dimensions)
+input_dimension = X_train.shape[0]
+hidden_dimensions = [50, 100]
+output_dimension = Y_train.shape[0]
+W, b, gamma, beta = init_weights(input_dimension, hidden_dimensions,
+                                 output_dimension)
+
+P, S_BN, S, X_layers, mean, var = EvaluateClassifier(X_train[:, 0:150],
+                                                     W,
+                                                     b,
+                                                     gamma,
+                                                     beta,
+                                                     mean=None,
+                                                     variance=None,
+                                                     batch_normalization=True)
+
+print("P.shape: ", P.shape)
+print("len(S_BN)", len(S_BN))
+print("len(S)", len(S))
+print("len(X_layers)", len(X_layers))
+print("len(mean)", len(mean))
+print("len(var)", len(var))
+print("S[0].shape", S[0].shape)
+print("S_BN[0].shape", S_BN[0].shape)
+print("X_layers[0].shape", X_layers[0].shape)
+print("mean[0].shape: ", mean[0].shape)
+print("var[0].shape: ", var[0].shape)
+print("S[1].shape: ", S[1].shape)
+print("S_BN[1].shape", S_BN[1].shape)
+print("X_layers[1].shape", X_layers[1].shape)
+print("mean[1].shape", mean[1].shape)
+print("var[1].shape", var[1].shape)
+
+quit()
+"""
+"""
+def compute_loss(X_c, Y, W, b, lmbda):
     N = X_c.shape[1]
-    P, _ = EvaluateClassifier(X_c, W1, b1, W2, b2)
+    P, _ = EvaluateClassifier(X_c,
+                              W,
+                              b,
+                              gamma=None,
+                              beta=None,
+                              variance=None,
+                              batch_normalization=False)
     loss = 1 / N * (-np.sum(Y * np.log(P)))
     return loss
+"""
 
 
-def ComputeCost(X_c, Y, W1, b1, W2, b2, lmbda):
+def ComputeCost(
+    X_c,
+    Y,
+    W,
+    b,
+    k,
+    lmbda,
+    gamma=None,
+    beta=None,
+    mean=None,
+    variance=None,
+    batch_norm=False,
+):
+
+    #k = len(W)
+    loss_regularization = 0
+    if batch_norm == True:
+        if mean is None and variance is None:
+            P, S_BN, S, X_layers, mean, variance = EvaluateClassifier(
+                X_c, W, b, gamma, beta, batch_normalization=True)
+
+        else:
+            P, S_BN, S, X_layers, mean, variance = EvaluateClassifier(
+                X_c,
+                W,
+                b,
+                gamma,
+                beta,
+                mean,
+                variance,
+                batch_normalization=True)
+    else:
+        P, X_layers = EvaluateClassifier(X_c, W, b)
 
     #predictions, cross entropy loss
     #P, H = EvaluateClassifier(X_c, W, b)
-    P, H = EvaluateClassifier(X_c, W1, b1, W2, b2)
+    #P, H = EvaluateClassifier(X_c, W1, b1, W2, b2)
     N = X_c.shape[1]
     # loss function term
     loss_cross = -np.sum(
         Y * np.log(P)) / N  # seems to work best, aslo recommended by teacher
-
     # regularzation term
-    loss_regularization = lmbda * (np.sum((W1**2)) + np.sum((W2**2)))
+    for W_layer in W:
+        loss_regularization += lmbda * (np.sum((W_layer**2)) + np.sum((W2**2)))
 
     return loss_cross + loss_regularization
 
 
-def ComputeAccuracy(X_c, y_c, W1, b1, W2, b2):
+def ComputeAccuracy(X_c,
+                    y_c,
+                    W,
+                    b,
+                    gamma=None,
+                    beta=None,
+                    mean=None,
+                    variance=None,
+                    batch_norm=False):
     #calculates mean accuracy of predictions
-    probabilities, hidden_activation = EvaluateClassifier(X_c, W1, b1, W2, b2)
+    if batch_norm == True:
+        if mean is None and variance is None:
+            probabilities, S_BN, S, X_layers, mean, variance = EvaluateClassifier(
+                X_c, W, b, gamma, beta, batch_norm=True)
+        else:
+            probabilities, S_BN, S, X_layers, mean, variance = EvaluateClassifier(
+                X_c, W, b, gamma, beta, mean, variance, batch_norm=True)
+    else:
+        probabilities, X_layers = EvaluateClassifier(X_c, W, b)
+
+    #probabilities, hidden_activation = EvaluateClassifier(X_c, W1, b1, W2, b2)
     acc = np.mean(y_c == np.argmax(probabilities, 0))
     return acc
 
 
 def BatchNormBackPass(G_batch, S_batch, mean, variance):
+    """ propagate through the batch normalization """
     N = S_batch.shape[1]
     G1 = G_batch * (((variance + 1e-15)**(-0.5)) @ np.ones((1, N)))
     G2 = G_batch * (((variance + 1e-15)**(-1.5)) @ np.ones((1, N)))
     D = S_batch - mean @ np.ones((1, N))
     c = (G2 * D) @ np.ones((N, 1))
 
-    return G1 - (G1 @ np.ones((N, 1))) / N - D * (c @ np.ones((1, N))) / N
+    return G1 - (1 / N) * (G1 @ np.ones((N, 1))) - (1 / N) * D * (c @ np.ones(
+        (1, N)))
 
 
-def ComputeGradients(X_b, Y_b, p, h, W_1, W_2, lamb):
-    n = X_b.shape[1]  # batch size
+# my own version
+def ComputeGradients(X_b,
+                     Y_b,
+                     P_batch,
+                     S_BN,
+                     S,
+                     X_layers,
+                     W,
+                     b,
+                     lamb,
+                     gamma=None,
+                     beta=None,
+                     mean=None,
+                     variance=None,
+                     batch_norm=False):
+    N = X_b.shape[1]  # batch size
     O = Y_b.shape[0]  # size of output data
+    k = len(W)
+    #create empty gradient vectorts
+    grad_W = [None] * k
+    grad_b = [None] * k
+    if batch_norm == True:
+        grad_gamma = [None] * (k - 1)
+        grad_beta = [None] * (k - 1)
+        # weights of gradients and bias for each layers k
 
-    G = -(Y_b - p)  # batch
+        #Backwards pass on batch
+        G_batch = -(Y_b - P_batch)
 
-    grad_b2 = (G @ np.ones(shape=(n, 1)) / n).reshape(O, 1)
-    grad_W2 = (G @ h.T) / n + 2 * lamb * W_2
-    G = W_2.T @ G
-    G = G * (h > 0)
+        grad_W[k] = 1 / N * (G_batch @ X_layers[k].T) + 2 * lamb * W[k]
+        grad_b[k] = 1 / N * (G_batch @ np.ones((N, 1)))
+        G_batch = W[k].T @ G_batch
+        G_batch = G_batch * (X_layers[k] > 0)
 
-    grad_b1 = (G @ np.ones(shape=(n, 1)) / n).reshape(h.shape[0], 1)
+        #grad_b1 = (G_batch @ np.ones(shape=(N, 1)) / N).reshape(h.shape[0], 1)
+        #grad_W1 = G_batch @ X_b.T / N + 2 * lamb * W
 
-    grad_W1 = G @ X_b.T / n + 2 * lamb * W_1
+        #iterate through all layers:
+        #see if this works!
+        for layer in range(k - 1, -1, -1):
+            #for layer in range(k - 1, -1, -1):
 
-    return grad_W2, grad_b2, grad_W1, grad_b1
+            #compute gradients for the scale and offset parameters
+            grad_gamma[layer] = (1 / N) * ((G_batch * S_BN[layer]) @ np.ones(
+                (N, 1)))
+            grad_beta[layer] = (1 / N) * (G_batch @ np.ones((N, 1)))
+
+            # Propagate the gradients through the scale and shift
+            G_batch = G_batch * (gamma[layer] @ np.ones((1, N)))
+
+            # Propagate G through the batch normalization
+            G_batch = BatchNormBackPass(G_batch, S[layer], mean[layer],
+                                        variance[layer])
+
+            # Gradient of weights and bias for layer l+1 (since for Python list indexes starts on 0)
+            grad_W[layer] = (1 / N) * (
+                G_batch @ X_layers[layer].T) + 2 * lamb * W[layer]
+            grad_b[layer] = (1 / N) * (G_batch @ np.ones((N, 1)))
+
+            # If layer>1 propagate G to the previous layer
+            if layer > 0:
+                G_batch = W[layer].T @ G_batch
+                G_batch = G_batch * (X_layers[layer] > 0)
+            return grad_W, grad_b, grad_gamma, grad_beta
+        else:
+
+            G_batch = -(Y_b - P_batch)
+            #grad_W[k] = 1 / N * (G_batch @ X_layers[k].T) + 2 * lamb * W[k]
+            #grad_b[k] = 1 / N * (G_batch @ np.ones((N, 1)))
+            #G_batch = W[k].T @ G_batch
+            #G_batch = G_batch * (X_layers[k] > 0)
+            for layer in range(k, -1, 0, -1):
+                grad_W[layer] = (1 / N) * (
+                    G_batch @ X_layers[layer].T) + 2 * lamb * W[layer]
+                grad_b[layer] = (1 / N) * (G_batch @ np.ones((N, 1)))
+                G_batch = W[k].T @ G_batch
+                G_batch = G_batch * (X_layers[k] > 0)
+            return grad_W, grad_b
+
+    #if batch_norm == True:
+    #    return grad_W, grad_b, grad_gamma, grad_beta
+    #else:
+    #    return grad_W, grad_b
+    #return grad_W2, grad_b2, grad_W1, grad_b1
 
 
-def ComputeGradsNum(X, Y, W1, b1, W2, b2, lambda_, h=0.00001):
+"""
+#jupiter version
+def ComputeGradients(X_b,
+                     Y_b,
+                     P_batch,
+                     S_BN,
+                     S,
+                     X_layers,
+                     W,
+                     b,
+                     lamb,
+                     gamma=None,
+                     beta=None,
+                     mean=None,
+                     variance=None,
+                     batch_norm=False):
+    N = X_b.shape[1]  # batch size
+    O = Y_b.shape[0]  # size of output data
+    k = len(W)
+    #create empty gradient vectorts
+    grad_W = [None] * k
+    grad_b = [None] * k
+    if batch_norm == True:
+        grad_gamma = [None] * (k - 1)
+        grad_beta = [None] * (k - 1)
+    # weights of gradients and bias for each layers k
+
+    #Backwards pass on batch
+    G_batch = -(Y_b - P_batch)
+
+    # jupiter notebook...
+    grad_W[k - 1] = 1 / N * (G_batch @ X_layers[k - 1].T) + 2 * lamb * W[k - 1]
+    grad_b[k - 1] = 1 / N * (G_batch @ np.ones((N, 1)))
+    G_batch = W[k - 1].T @ G_batch
+    G_batch = G_batch * (X_layers[k - 1] > 0)
+
+    #grad_b1 = (G_batch @ np.ones(shape=(N, 1)) / N).reshape(h.shape[0], 1)
+    #grad_W1 = G_batch @ X_b.T / N + 2 * lamb * W
+
+    #iterate through all layers:
+    #see if this works!
+    for layer in range(k - 2, -1, -1):
+        #for layer in range(k - 1, -1, -1):
+        if batch_norm == True:
+            #compute gradients for the scale and offset parameters
+            grad_gamma[layer] = (1 / N) * ((G_batch * S_BN[layer]) @ np.ones(
+                (N, 1)))
+            grad_beta[layer] = (1 / N) * (G_batch @ np.ones((N, 1)))
+
+            # Propagate the gradients through the scale and shift
+            G_batch = G_batch * (gamma[layer] @ np.ones((1, N)))
+
+            # Propagate G through the batch normalization
+            G_batch = BatchNormBackPass(G_batch, S[layer], mean[layer],
+                                        variance[layer])
+
+        # Gradient of weights and bias for layer l+1 (since for Python list indexes starts on 0)
+        grad_W[layer] = (1 / N) * (
+            G_batch @ X_layers[layer].T) + 2 * lamb * W[layer]
+        grad_b[layer] = (1 / N) * (G_batch @ np.ones((N, 1)))
+
+        # If layer>1 propagate G to the previous layer
+        if layer > 0:
+            G_batch = W[layer].T @ G_batch
+            G_batch = G_batch * (X_layers[layer] > 0)
+
+    if batch_norm == True:
+        return grad_W, grad_b, grad_gamma, grad_beta
+    else:
+        return grad_W, grad_b
+    #return grad_W2, grad_b2, grad_W1, grad_b1
+"""
+
+
+def ComputeGradsNum(X,
+                    Y,
+                    lambda_,
+                    W,
+                    b,
+                    gamma,
+                    beta,
+                    mean,
+                    var,
+                    batch_normalization,
+                    h=0.000001):
     """ Python version of provided Matlab code. """
-    grad_W2 = np.zeros(shape=W2.shape)
-    grad_b2 = np.zeros(shape=b2.shape)
-    grad_W1 = np.zeros(shape=W1.shape)
-    grad_b1 = np.zeros(shape=b1.shape)
-    c = ComputeCost(X, Y, W1, b1, W2, b2, lambda_)
+    # Create lists for saving the gradients by layers
+    grad_W = [W_l.copy() for W_l in W]
+    grad_b = [b_l.copy() for b_l in b]
+    if batch_normalization:
+        grad_gamma = [gamma_l.copy() for gamma_l in gamma]
+        grad_beta = [beta_l.copy() for beta_l in beta]
 
-    for i in range(b1.shape[0]):
-        b1_try = b1.copy()
-        b1_try[i, 0] = b1_try[i, 0] + h
-        c2 = ComputeCost(X, Y, W1, b1_try, W2, b2, lambda_)
-        grad_b1[i, 0] = (c2 - c) / h
+    # Compute initial cost and iterate layers k
+    c = ComputeCost(X, Y, lambda_, W, b, gamma, beta, mean, var,
+                    batch_normalization)
+    k = len(W)
+    for l in range(k):
 
-    for i in range(W1.shape[0]):
-        for j in range(W1.shape[1]):
-            W1_try = W1.copy()
-            W1_try[i, j] = W1_try[i, j] + h
-            c2 = ComputeCost(X, Y, W1_try, b1, W2, b2, lambda_)
-            grad_W1[i, j] = (c2 - c) / h
+        # Gradients for bias
+        for i in range(b[l].shape[0]):
+            b_try = [b_l.copy() for b_l in b]
+            b_try[l][i, 0] += h
+            c2 = ComputeCost(X, Y, lambda_, W, b_try, gamma, beta, mean, var,
+                             batch_normalization)
+            grad_b[l][i, 0] = (c2 - c) / h
 
-    for i in range(b2.shape[0]):
-        b2_try = b2.copy()
-        b2_try[i, 0] = b2_try[i, 0] + h
-        c2 = ComputeCost(X, Y, W1, b1, W2, b2_try, lambda_)
-        grad_b2[i, 0] = (c2 - c) / h
+        # Gradients for weights
+        for i in range(W[l].shape[0]):
+            for j in range(W[l].shape[1]):
+                W_try = [W_l.copy() for W_l in W]
+                W_try[l][i, j] += h
+                c2 = ComputeCost(X, Y, lambda_, W_try, b, gamma, beta, mean,
+                                 var, batch_normalization)
+                grad_W[l][i, j] = (c2 - c) / h
 
-    for i in range(W2.shape[0]):
-        for j in range(W2.shape[1]):
-            W2_try = W2.copy()
-            W2_try[i, j] = W2_try[i, j] + h
-            c2 = ComputeCost(X, Y, W1, b1, W2_try, b2, lambda_)
-            grad_W2[i, j] = (c2 - c) / h
+        if l < (k - 1) and batch_normalization:
 
-    return grad_W2, grad_b2, grad_W1, grad_b1
+            # Gradients for gamma
+            for i in range(gamma[l].shape[0]):
+                gamma_try = [gamma_l.copy() for gamma_l in gamma]
+                gamma_try[l][i, 0] += h
+                c2 = ComputeCost(X, Y, lambda_, W, b, gamma_try, beta, mean,
+                                 var, batch_normalization)
+                grad_gamma[l][i, 0] = (c2 - c) / h
+
+            # Gradients for betas
+            for i in range(beta[l].shape[0]):
+                beta_try = [beta_l.copy() for beta_l in beta]
+                beta_try[l][i, 0] += h
+                c2 = ComputeCost(X, Y, lambda_, W, b, gamma, beta_try, mean,
+                                 var, batch_normalization)
+                grad_beta[l][i, 0] = (c2 - c) / h
+
+    if batch_normalization:
+        return grad_W, grad_b, grad_gamma, grad_beta
+    else:
+        return grad_W, grad_b
 
 
-def test_gradients_num(X, Y, W1, b1, W2, b2, lambda_):
+def test_gradients_num(X,
+                       Y,
+                       W,
+                       b,
+                       lambda_,
+                       gamma=None,
+                       beta=None,
+                       batch_norm=False):
     # Finction for checking the analytical gradietn with the numerical ones.
     # Compute the gradients analytically
-    P, h = EvaluateClassifier(X, W1, b1, W2, b2)
+    #P, h = EvaluateClassifier(X, W, b)
+    print("test gradients.")
+    print("In test_gradients, W len:", len(W))
+    k = len(W)
+    if batch_norm == False:
+        grad_W_numerical, grad_b_numerical = ComputeGradsNum(
+            X,
+            Y,
+            lambda_,
+            W,
+            b,
+            gamma,
+            beta,
+            mean=None,
+            var=None,
+            batch_normalization=False)
+        print("test gradients.")
+        print("In test_gradients, W len:", len(W))
+        P, X_layers = EvaluateClassifier(X, W, b, k)
+        grad_W_analytical, grad_b_analytical = ComputeGradients(
+            X,
+            Y,
+            P,
+            S_BN=None,
+            S=None,
+            X_layers=X_layers,
+            W=W,
+            b=b,
+            lamb=lambda_,
+            gamma=None,
+            beta=None,
+            mean=None,
+            variance=None,
+            batch_normalization=False)
+        print("For weights, the % of absolute errors below 1e-6 by layers is:")
+        print([
+            np.mean(np.abs(grad_W_analytical[i] - grad_W_numerical[i]) < 1e-6)
+            * 100 for i in range(len(grad_W_analytical))
+        ])
+        print("and the maxium absolute error by layers is:")
+        print([
+            np.max(np.abs(grad_W_analytical[i] - grad_W_numerical[i]))
+            for i in range(len(grad_W_analytical))
+        ])
 
-    grad_W2_analytical, grad_b2_analytical, grad_W1_analytical, grad_b1_analytical = ComputeGradients(
-        X, Y, P, h, W1, W2, lambda_)
-
-    grad_W2_numerical, grad_b2_numerical, grad_W1_numerical, grad_b1_numerical = ComputeGradsNum(
-        X, Y, W1, b1, W2, b2, lambda_)
+        print("\nFor bias, the % of absolute errors below 1e-6 by layers is:")
+        print([
+            np.mean(np.abs(grad_b_analytical[i] - grad_b_numerical[i]) < 1e-6)
+            * 100 for i in range(len(grad_b_analytical))
+        ])
+        print("and the maxium absolute error by layers is:")
+        print([
+            np.max(np.abs(grad_b_analytical[i] - grad_b_numerical[i]))
+            for i in range(len(grad_b_analytical))
+        ])
+    return None
 
     #grad_W_numerical_slow, grad_b_numerical_slow = ComputeGradsNumSlow(
     #    X, Y, W, b, lambda_)
     # Absolute error between numerically and analytically computed gradient
     #grad_W_analytical = np.array(grad_W_analytical)
-    grad_W1_analytical = np.array(grad_W1_analytical)
-    grad_W2_analytical = np.array(grad_W2_analytical)
-    grad_b1_analytical = np.array(grad_b1_analytical)
-    grad_b2_analytical = np.array(grad_b2_analytical)
+    grad_W_analytical = np.array(grad_W_analytical)
+    grad_b_analytical = np.array(grad_b_analytical)
+    #grad_b1_analytical = np.array(grad_b_analytical)
+    #grad_b2_analytical = np.array(grad_b_analytical)
 
     #grad_W_abs_diff = np.abs(grad_W_numerical - grad_W_analytical)
     grad_W1_abs_diff = np.abs(grad_W1_numerical - grad_W1_analytical)
@@ -333,15 +733,31 @@ def test_gradients_num(X, Y, W1, b1, W2, b2, lambda_):
           str((grad_b1_abs_diff / grad_b1_abs_sum).max()))
 
 
-def update_cyclical_rates(t, n_s, eta_min, eta_max):
-    # n_s: step size
+X = X_train[0:20, 0:5]
+Y = Y_train[:, 0:5]
+lambda_ = 0
+input_dimension = X_train.shape[0]
+hidden_dimensions = [50, 100]
+output_dimension = Y_train.shape[0]
+W, b, gamma, beta = init_weights(input_dimension, hidden_dimensions,
+                                 output_dimension)
 
-    cycl = t // (2 * n_s)  # number of complete cycles elapsed
-    if (2 * cycle + 1) * n_s <= t <= 2 * (cycle + 1) * n_s:
-        return eta_max - (t -
-                          (2 * cycle + 1) * n_s) / n_s * (eta_max - eta_min)
-    elif 2 * cycle * n_s <= t <= (2 * cycle + 1) * n_s:
-        return eta_min + (t - 2 * cycle * n_s) / n_s * (eta_max - eta_min)
+print("W len after init weights: ", len(W))
+print("b len after init weights: ", len(b))
+
+print("gamma len after init weights: ", len(gamma))
+print("beta len after init weights: ", len(beta))
+
+#print("W has shape", np.shape(W[0]))
+test_gradients_num(X,
+                   Y,
+                   W,
+                   b,
+                   lambda_,
+                   gamma=None,
+                   beta=None,
+                   batch_norm=False)
+quit()
 
 
 def miniBatchGD(X_trainn, Y_trainn, y_trainn, W1, b1, W2, b2, X_validation,
