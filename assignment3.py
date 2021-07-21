@@ -716,26 +716,25 @@ def test_gradients_num(X,
         mean=None,
         variance=None,
         batch_norm=batch_norm)
-    print("For weights, the % of absolute errors below 1e-6 by layers is:")
-    #for i in range(len(grad_W_analytical)):
-    #    print("grad_W_analytical type: ", type(grad_W_analytical[i]))
-    #    print("grad_W_numerical type: ", type(grad_W_numerical[i]))
-    print([
-        np.mean(np.abs(grad_W_analytical[i] - grad_W_numerical[i]) < 1e-6) *
-        100 for i in range(len(grad_W_analytical))
-    ])
-    print("and the maxium absolute error by layers is:")
+
+    #print("For weights, the % of absolute errors below 1e-6 by layers is:")
+    #print([
+    #    np.mean(np.abs(grad_W_analytical[i] - grad_W_numerical[i]) < 1e-6) *
+    #    100 for i in range(len(grad_W_analytical))
+    #])
+
+    print("For weights, the maximum absolute errors for each layer is:")
     print([
         np.max(np.abs(grad_W_analytical[i] - grad_W_numerical[i]))
         for i in range(len(grad_W_analytical))
     ])
 
-    print("\nFor bias, the % of absolute errors below 1e-6 by layers is:")
-    print([
-        np.mean(np.abs(grad_b_analytical[i] - grad_b_numerical[i]) < 1e-6) *
-        100 for i in range(len(grad_b_analytical))
-    ])
-    print("and the maxium absolute error by layers is:")
+    #print("\nFor bias, the % of absolute errors below 1e-6 by layers is:")
+    #print([
+    #    np.mean(np.abs(grad_b_analytical[i] - grad_b_numerical[i]) < 1e-6) *
+    #    100 for i in range(len(grad_b_analytical))
+    #])
+    print("For bias, the maximum absolute errors for each layer is:")
     print([
         np.max(np.abs(grad_b_analytical[i] - grad_b_numerical[i]))
         for i in range(len(grad_b_analytical))
@@ -751,14 +750,15 @@ def test_gradients_num(X,
     #grad_b2_analytical = np.array(grad_b_analytical)
 
     #grad_W_abs_diff = np.abs(grad_W_numerical - grad_W_analytical)
-    grad_W1_abs_diff = np.abs(grad_W1_numerical - grad_W1_analytical)
-    grad_W2_abs_diff = np.abs(grad_W2_numerical - grad_W2_analytical)
+    #grad_W1_abs_diff = np.abs(grad_W1_numerical - grad_W1_analytical)
+    #grad_W2_abs_diff = np.abs(grad_W2_numerical - grad_W2_analytical)
     #grad_b_abs_diff = np.abs(
     #    np.array(grad_b_numerical) - np.array(grad_b_analytical))
-    grad_b1_abs_diff = np.abs(
-        np.array(grad_b1_numerical) - np.array(grad_b1_analytical))
-    grad_b2_abs_diff = np.abs(
-        np.array(grad_b2_numerical) - np.array(grad_b2_analytical))
+
+    #grad_b1_abs_diff = np.abs(
+    #    np.array(grad_b1_numerical) - np.array(grad_b1_analytical))
+    #grad_b2_abs_diff = np.abs(
+    #    np.array(grad_b2_numerical) - np.array(grad_b2_analytical))
     """
     grad_W_abs_diff_slow = np.abs(grad_W_numerical_slow - grad_W_analytical)
     grad_b_abs_diff_slow = np.abs(grad_b_numerical_slow - grad_b_analytical)
@@ -778,34 +778,37 @@ def test_gradients_num(X,
             (grad_b_abs_diff_slow).max()), "\n")
     """
 
-    grad_W1_abs_sum = np.maximum(
-        np.array([np.abs(grad_W1_numerical) + np.abs(grad_W1_analytical)]),
-        0.00000001)
+    print("For bias, the maximum relative errors for each layer is:")
+    print([
+        np.max(np.abs(grad_b_analytical[i] - grad_b_numerical[i])) /
+        np.max(np.abs(grad_b_analytical[i] + grad_b_numerical[i]))
+        for i in range(len(grad_b_analytical))
+    ])
 
-    grad_b1_abs_sum = np.maximum(
-        np.array(([np.abs(grad_b1_numerical) + np.abs(grad_b1_analytical)])),
-        0.00000001)
-    grad_W2_abs_sum = np.maximum(
-        np.array([np.abs(grad_W2_numerical) + np.abs(grad_W2_analytical)]),
-        0.00000001)
+    print("For weights, the maximum relative errors for each layer is:")
+    print([
+        np.max(np.abs(grad_W_analytical[i] - grad_W_numerical[i])) /
+        np.max(np.abs(grad_W_analytical[i] + grad_W_numerical[i]))
+        for i in range(len(grad_W_analytical))
+    ])
 
-    print('For weights W1 the maximum relative error is ' +
-          str((grad_W1_abs_diff / grad_W1_abs_sum).max()))
-    print('For weights W2 the maximum relative error is ' +
-          str((grad_W2_abs_diff / grad_W2_abs_sum).max()))
-    print('For bias b1 the maximum relative error is ' +
-          str((grad_b1_abs_diff / grad_b1_abs_sum).max()))
-    print('For bias the maximum relative error is ' +
-          str((grad_b1_abs_diff / grad_b1_abs_sum).max()))
+    # ---------- possibly add with the 0.0000001 for stability if it messes up -------------
+    #grad_W_abs_sum = np.maximum(
+    #    np.array([np.abs(grad_W_numerical) + np.abs(grad_W_analytical)]),
+    #    0.00000001)
+
+    #grad_b_abs_sum = np.maximum(
+    #    np.array(([np.abs(grad_b_numerical) + np.abs(grad_b_analytical)])),
+    #    0.00000001)
 
 
-X = X_train[0:20, 0:5]
-Y = Y_train[:, 0:5]
+X = X_train[0:30, 0:10]
+Y = Y_train[:, 0:10]
 #X = X_train
 #Y = Y_train
 lambda_ = 0
 input_dimension = X.shape[0]
-hidden_dimensions = [50, 20, 60]
+hidden_dimensions = [50, 50, 35]
 output_dimension = Y_train.shape[0]
 W, b, gamma, beta = init_weights(input_dimension, hidden_dimensions,
                                  output_dimension)
