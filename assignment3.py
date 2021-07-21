@@ -251,6 +251,8 @@ def EvaluateClassifier(
     #print("W in evaluate has type: ", type(W))
     #print("W in evaluate has shape: ", np.shape(W))
     #print("W in evaluate contains: ", W)
+    #print("gamma is:", gamma)
+    #print("beta is:", beta)
 
     k = len(W)  # number of layers
 
@@ -460,6 +462,7 @@ def ComputeGradients(X_b,
     #grad_b = [None] * k
     X_layers = [X.copy()] + X_layers
     if batch_norm == True:
+
         grad_W = [None] * k
         grad_b = [None] * k
         grad_gamma = [None] * (k - 1)
@@ -467,19 +470,23 @@ def ComputeGradients(X_b,
         # weights of gradients and bias for each layers k
 
         #Backwards pass on batch
+
         G_batch = -(Y_b - P_batch)
 
-        grad_W[k] = 1 / N * (G_batch @ X_layers[k].T) + 2 * lamb * W[k]
-        grad_b[k] = 1 / N * (G_batch @ np.ones((N, 1)))
-        G_batch = W[k].T @ G_batch
-        G_batch = G_batch * (X_layers[k] > 0)
+        grad_W[k -
+               1] = 1 / N * (G_batch @ X_layers[k - 1].T) + 2 * lamb * W[k - 1]
+        grad_b[k - 1] = 1 / N * (G_batch @ np.ones((N, 1)))
+        G_batch = W[k - 1].T @ G_batch
+        G_batch = G_batch * (X_layers[k - 1] > 0)
 
         #grad_b1 = (G_batch @ np.ones(shape=(N, 1)) / N).reshape(h.shape[0], 1)
         #grad_W1 = G_batch @ X_b.T / N + 2 * lamb * W
 
         #iterate through all layers:
         #see if this works!
-        for layer in range(k - 1, -1):
+
+        for layer in range(k - 2, -1, -1):
+            print("layer ", layer)
             #for layer in range(k - 1, -1, -1):
 
             #compute gradients for the scale and offset parameters
@@ -503,7 +510,11 @@ def ComputeGradients(X_b,
             if layer > 0:
                 G_batch = W[layer].T @ G_batch
                 G_batch = G_batch * (X_layers[layer] > 0)
-            return grad_W, grad_b, grad_gamma, grad_beta
+        #print("grad_W", grad_W)
+        #print("grad_b", grad_b)
+        #print("grad_gamma", grad_gamma)
+        #print("grad_beta", grad_beta)
+        return grad_W, grad_b, grad_gamma, grad_beta
     else:
         grad_b, grad_W = [], []
         for w_i, b_i in zip(W, b):
@@ -680,127 +691,253 @@ def test_gradients_num(X,
                        gamma=None,
                        beta=None,
                        batch_norm=False):
-    # Finction for checking the analytical gradietn with the numerical ones.
+    # Function for checking the analytical gradietn with the numerical ones.
     # Compute the gradients analytically
     #P, h = EvaluateClassifier(X, W, b)
     #print("test gradients.")
     #print("In test_gradients, W len:", len(W))
     k = len(W)
+    if batch_norm == True:
+        print("hej")
+        P, S_BN, S, X_layers, mean, varinace = EvaluateClassifier(
+            X,
+            W,
+            b,
+            gamma=gamma,
+            beta=beta,
+            mean=None,
+            variance=None,
+            batch_normalization=True)
 
-    grad_W_numerical, grad_b_numerical = ComputeGradsNum(
-        X,
-        Y,
-        lambda_,
-        W,
-        b,
-        gamma,
-        beta,
-        mean=None,
-        var=None,
-        batch_normalization=batch_norm)
-    print("test gradients.")
-    print("In test_gradients, W len:", len(W))
-    P, X_layers = EvaluateClassifier(X, W, b)
-    grad_W_analytical, grad_b_analytical = ComputeGradients(
-        X,
-        Y,
-        P,
-        S_BN=None,
-        S=None,
-        X_layers=X_layers,
-        W=W,
-        b=b,
-        lamb=lambda_,
-        gamma=None,
-        beta=None,
-        mean=None,
-        variance=None,
-        batch_norm=batch_norm)
+        grad_W_numerical, grad_b_numerical, grad_gamma_numerical, grad_beta_numerical = ComputeGradsNum(
+            X,
+            Y,
+            lambda_,
+            W,
+            b,
+            gamma,
+            beta,
+            mean=None,
+            var=None,
+            batch_normalization=batch_norm)
+        #P, S_BN, S, X_layers[1:], mean, variance
 
-    #print("For weights, the % of absolute errors below 1e-6 by layers is:")
-    #print([
-    #    np.mean(np.abs(grad_W_analytical[i] - grad_W_numerical[i]) < 1e-6) *
-    #    100 for i in range(len(grad_W_analytical))
-    #])
+        grad_W_analytical, grad_b_analytical, grad_gamma_analytical, grad_beta_analytical = ComputeGradients(
+            X,
+            Y,
+            P,
+            S_BN=S_BN,
+            S=S,
+            X_layers=X_layers,
+            W=W,
+            b=b,
+            lamb=lambda_,
+            gamma=gamma,
+            beta=beta,
+            mean=mean,
+            variance=varinace,
+            batch_norm=True)
 
-    print("For weights, the maximum absolute errors for each layer is:")
-    print([
-        np.max(np.abs(grad_W_analytical[i] - grad_W_numerical[i]))
-        for i in range(len(grad_W_analytical))
-    ])
+        print("For weights, the maximum absolute errors for each layer is:")
+        print([
+            np.max(np.abs(grad_W_analytical[i] - grad_W_numerical[i]))
+            for i in range(len(grad_W_analytical))
+        ])
 
-    #print("\nFor bias, the % of absolute errors below 1e-6 by layers is:")
-    #print([
-    #    np.mean(np.abs(grad_b_analytical[i] - grad_b_numerical[i]) < 1e-6) *
-    #    100 for i in range(len(grad_b_analytical))
-    #])
-    print("For bias, the maximum absolute errors for each layer is:")
-    print([
-        np.max(np.abs(grad_b_analytical[i] - grad_b_numerical[i]))
-        for i in range(len(grad_b_analytical))
-    ])
+        #print("\nFor bias, the % of absolute errors below 1e-6 by layers is:")
+        #print([
+        #    np.mean(np.abs(grad_b_analytical[i] - grad_b_numerical[i]) < 1e-6) *
+        #    100 for i in range(len(grad_b_analytical))
+        #])
+        print("For bias, the maximum absolute errors for each layer is:")
+        print([
+            np.max(np.abs(grad_b_analytical[i] - grad_b_numerical[i]))
+            for i in range(len(grad_b_analytical))
+        ])
+        print("For bias, the maximum relative errors for each layer is:")
+        print([
+            np.max(np.abs(grad_b_analytical[i] - grad_b_numerical[i])) /
+            np.maximum(
+                np.array([
+                    np.max(
+                        np.abs(grad_b_analytical[i]) +
+                        np.abs(grad_b_numerical[i]))
+                ]), 0.000001) for i in range(len(grad_b_analytical))
+        ])
+        #np.maximum(
+        #    np.array([np.abs(grad_W_numerical) + np.abs(grad_W_analytical)]),
+        #    0.00000001)
 
-    #grad_W_numerical_slow, grad_b_numerical_slow = ComputeGradsNumSlow(
-    #    X, Y, W, b, lambda_)
-    # Absolute error between numerically and analytically computed gradient
-    #grad_W_analytical = np.array(grad_W_analytical)
-    grad_W_analytical = np.array(grad_W_analytical)
-    grad_b_analytical = np.array(grad_b_analytical)
-    #grad_b1_analytical = np.array(grad_b_analytical)
-    #grad_b2_analytical = np.array(grad_b_analytical)
+        #np.maximum(np.array([]), 0.00000001)
+        print("For weights, the maximum relative errors for each layer is:")
+        #np.maximum(
+        #    np.array([np.abs(grad_W_numerical) + np.abs(grad_W_analytical)]),
+        #    0.00000001)
 
-    #grad_W_abs_diff = np.abs(grad_W_numerical - grad_W_analytical)
-    #grad_W1_abs_diff = np.abs(grad_W1_numerical - grad_W1_analytical)
-    #grad_W2_abs_diff = np.abs(grad_W2_numerical - grad_W2_analytical)
-    #grad_b_abs_diff = np.abs(
-    #    np.array(grad_b_numerical) - np.array(grad_b_analytical))
+        print([
+            np.max(np.abs(grad_W_analytical[i] - grad_W_numerical[i])) /
+            np.maximum(
+                np.array([
+                    np.max(np.abs(grad_W_analytical[i] + grad_W_numerical[i]))
+                ]), 0.0000001) for i in range(len(grad_W_analytical))
+        ])
+        #  ---------------- beta and gamma ------------------
+        print("For gamma, the maximum absolute errors for each layer is:")
+        print([
+            np.max(np.abs(grad_gamma_analytical[i] - grad_gamma_numerical[i]))
+            for i in range(len(grad_gamma_analytical))
+        ])
 
-    #grad_b1_abs_diff = np.abs(
-    #    np.array(grad_b1_numerical) - np.array(grad_b1_analytical))
-    #grad_b2_abs_diff = np.abs(
-    #    np.array(grad_b2_numerical) - np.array(grad_b2_analytical))
-    """
-    grad_W_abs_diff_slow = np.abs(grad_W_numerical_slow - grad_W_analytical)
-    grad_b_abs_diff_slow = np.abs(grad_b_numerical_slow - grad_b_analytical)
-    
-    # Absolute errors........
+        print("For beta, the maximum absolute errors for each layer is:")
+        print([
+            np.max(np.abs(grad_beta_analytical[i] - grad_beta_numerical[i]))
+            for i in range(len(grad_beta_analytical))
+        ])
+        print("For beta, the maximum relative errors for each layer is:")
+        print([
+            np.max(np.abs(grad_beta_analytical[i] - grad_beta_numerical[i])) /
+            np.maximum(
+                np.array([
+                    np.max(
+                        np.abs(grad_beta_analytical[i]) +
+                        np.abs(grad_beta_numerical[i]))
+                ]), 0.0000001) for i in range(len(grad_beta_analytical))
+        ])
+        #np.maximum(
+        #    np.array([np.abs(grad_W_numerical) + np.abs(grad_W_analytical)]),
+        #    0.00000001)
 
-    print('For weights the maximum absolute error is ' +
-          str((grad_W_abs_diff).max()))
-    print(
-        'For bias the maximum absolute error is ' + str(
-            (grad_b_abs_diff).max()), "\n")
+        #np.maximum(np.array([]), 0.00000001)
+        print("For gamma, the maximum relative errors for each layer is:")
+        #np.maximum(
+        #    np.array([np.abs(grad_W_numerical) + np.abs(grad_W_analytical)]),
+        #    0.00000001)
 
-    print('For weights (slow grads) the maximum absolute error is ' +
-          str((grad_W_abs_diff_slow).max()))
-    print(
-        'For bias (slow grads) the maximum absolute error is ' + str(
-            (grad_b_abs_diff_slow).max()), "\n")
-    """
+        print([
+            np.max(np.abs(grad_gamma_analytical[i] - grad_gamma_numerical[i]))
+            / np.maximum(
+                np.array([
+                    np.max(
+                        np.abs(grad_gamma_analytical[i] +
+                               grad_gamma_numerical[i]))
+                ]), 0.0000001) for i in range(len(grad_gamma_analytical))
+        ])
 
-    print("For bias, the maximum relative errors for each layer is:")
-    print([
-        np.max(np.abs(grad_b_analytical[i] - grad_b_numerical[i])) /
-        np.max(np.abs(grad_b_analytical[i] + grad_b_numerical[i]))
-        for i in range(len(grad_b_analytical))
-    ])
+    else:
+        grad_W_numerical, grad_b_numerical = ComputeGradsNum(
+            X,
+            Y,
+            lambda_,
+            W,
+            b,
+            gamma,
+            beta,
+            mean=None,
+            var=None,
+            batch_normalization=batch_norm)
+        print("test gradients.")
+        print("In test_gradients, W len:", len(W))
+        P, X_layers = EvaluateClassifier(X, W, b)
+        grad_W_analytical, grad_b_analytical = ComputeGradients(
+            X,
+            Y,
+            P,
+            S_BN=None,
+            S=None,
+            X_layers=X_layers,
+            W=W,
+            b=b,
+            lamb=lambda_,
+            gamma=None,
+            beta=None,
+            mean=None,
+            variance=None,
+            batch_norm=batch_norm)
 
-    print("For weights, the maximum relative errors for each layer is:")
-    print([
-        np.max(np.abs(grad_W_analytical[i] - grad_W_numerical[i])) /
-        np.max(np.abs(grad_W_analytical[i] + grad_W_numerical[i]))
-        for i in range(len(grad_W_analytical))
-    ])
+        #print("For weights, the % of absolute errors below 1e-6 by layers is:")
+        #print([
+        #    np.mean(np.abs(grad_W_analytical[i] - grad_W_numerical[i]) < 1e-6) *
+        #    100 for i in range(len(grad_W_analytical))
+        #])
 
-    # ---------- possibly add with the 0.0000001 for stability if it messes up -------------
-    #grad_W_abs_sum = np.maximum(
-    #    np.array([np.abs(grad_W_numerical) + np.abs(grad_W_analytical)]),
-    #    0.00000001)
+        print("For weights, the maximum absolute errors for each layer is:")
+        print([
+            np.max(np.abs(grad_W_analytical[i] - grad_W_numerical[i]))
+            for i in range(len(grad_W_analytical))
+        ])
 
-    #grad_b_abs_sum = np.maximum(
-    #    np.array(([np.abs(grad_b_numerical) + np.abs(grad_b_analytical)])),
-    #    0.00000001)
+        #print("\nFor bias, the % of absolute errors below 1e-6 by layers is:")
+        #print([
+        #    np.mean(np.abs(grad_b_analytical[i] - grad_b_numerical[i]) < 1e-6) *
+        #    100 for i in range(len(grad_b_analytical))
+        #])
+        print("For bias, the maximum absolute errors for each layer is:")
+        print([
+            np.max(np.abs(grad_b_analytical[i] - grad_b_numerical[i]))
+            for i in range(len(grad_b_analytical))
+        ])
 
+        #grad_W_numerical_slow, grad_b_numerical_slow = ComputeGradsNumSlow(
+        #    X, Y, W, b, lambda_)
+        # Absolute error between numerically and analytically computed gradient
+        #grad_W_analytical = np.array(grad_W_analytical)
+        grad_W_analytical = np.array(grad_W_analytical)
+        grad_b_analytical = np.array(grad_b_analytical)
+        #grad_b1_analytical = np.array(grad_b_analytical)
+        #grad_b2_analytical = np.array(grad_b_analytical)
+
+        #grad_W_abs_diff = np.abs(grad_W_numerical - grad_W_analytical)
+        #grad_W1_abs_diff = np.abs(grad_W1_numerical - grad_W1_analytical)
+        #grad_W2_abs_diff = np.abs(grad_W2_numerical - grad_W2_analytical)
+        #grad_b_abs_diff = np.abs(
+        #    np.array(grad_b_numerical) - np.array(grad_b_analytical))
+
+        #grad_b1_abs_diff = np.abs(
+        #    np.array(grad_b1_numerical) - np.array(grad_b1_analytical))
+        #grad_b2_abs_diff = np.abs(
+        #    np.array(grad_b2_numerical) - np.array(grad_b2_analytical))
+        """
+        grad_W_abs_diff_slow = np.abs(grad_W_numerical_slow - grad_W_analytical)
+        grad_b_abs_diff_slow = np.abs(grad_b_numerical_slow - grad_b_analytical)
+        
+        # Absolute errors........
+
+        print('For weights the maximum absolute error is ' +
+            str((grad_W_abs_diff).max()))
+        print(
+            'For bias the maximum absolute error is ' + str(
+                (grad_b_abs_diff).max()), "\n")
+
+        print('For weights (slow grads) the maximum absolute error is ' +
+            str((grad_W_abs_diff_slow).max()))
+        print(
+            'For bias (slow grads) the maximum absolute error is ' + str(
+                (grad_b_abs_diff_slow).max()), "\n")
+        """
+
+        print("For bias, the maximum relative errors for each layer is:")
+        print([
+            np.max(np.abs(grad_b_analytical[i] - grad_b_numerical[i])) /
+            np.max(np.abs(grad_b_analytical[i] + grad_b_numerical[i]))
+            for i in range(len(grad_b_analytical))
+        ])
+
+        print("For weights, the maximum relative errors for each layer is: ")
+        print([
+            np.max(np.abs(grad_W_analytical[i] - grad_W_numerical[i])) /
+            np.max(np.abs(grad_W_analytical[i] + grad_W_numerical[i]))
+            for i in range(len(grad_W_analytical))
+        ])
+
+        # ---------- possibly add with the 0.0000001 for stability if it messes up -------------
+        #grad_W_abs_sum = np.maximum(
+        #    np.array([np.abs(grad_W_numerical) + np.abs(grad_W_analytical)]),
+        #    0.00000001)
+
+
+#grad_b_abs_sum = np.maximum(
+#    np.array(([np.abs(grad_b_numerical) + np.abs(grad_b_analytical)])),
+#    0.00000001)
 
 X = X_train[0:30, 0:10]
 Y = Y_train[:, 0:10]
@@ -808,7 +945,7 @@ Y = Y_train[:, 0:10]
 #Y = Y_train
 lambda_ = 0
 input_dimension = X.shape[0]
-hidden_dimensions = [50, 50, 35]
+hidden_dimensions = [50, 50]
 output_dimension = Y_train.shape[0]
 W, b, gamma, beta = init_weights(input_dimension, hidden_dimensions,
                                  output_dimension)
@@ -820,6 +957,7 @@ W, b, gamma, beta = init_weights(input_dimension, hidden_dimensions,
 #print("beta len after init weights: ", np.shape(beta))
 
 #print("W has shape", np.shape(W[0]))
+"""
 test_gradients_num(X,
                    Y,
                    W,
@@ -828,6 +966,15 @@ test_gradients_num(X,
                    gamma=None,
                    beta=None,
                    batch_norm=False)
+"""
+test_gradients_num(X,
+                   Y,
+                   W,
+                   b,
+                   lambda_,
+                   gamma=gamma,
+                   beta=beta,
+                   batch_norm=True)
 quit()
 
 
