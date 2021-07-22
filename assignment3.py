@@ -50,7 +50,7 @@ label_names = [
 def init_weights(input_dimension,
                  hidden_dimensions,
                  output_dimension,
-                 he=True,
+                 he_initialization=True,
                  seed=0,
                  std=0.01):
     k = len(hidden_dimensions) + 1
@@ -67,7 +67,7 @@ def init_weights(input_dimension,
         outputs = n_nodes[l + 1]
 
         # Define standard deviation for random weights and bias normal distribution
-        scale = np.sqrt(2 / inputs) if he else std
+        scale = np.sqrt(2 / inputs) if he_initialization else std
 
         # Initialize weights, bias, gammas and betas
         W[l] = np.random.normal(size=(outputs, inputs), loc=0, scale=scale)
@@ -75,56 +75,7 @@ def init_weights(input_dimension,
         if l < (k - 1):
             gamma[l] = np.ones((outputs, 1))
             beta[l] = np.zeros((outputs, 1))
-    #print("W shape: ", np.shape(W))
-    #print("W len: ", len(W))
-    #print("b shae: ", len(b))
-    #randomize weights with seed:
-    """
-    print("input_dimension layers shape: ", input_dimension)
-    print("hidden layers shape: ", hidden_dimensions)
-    k = len(hidden_dimensions) + 1
-    print("k has shaaape:", k)
-    # create empty maricies for the hyhperparameters
-    W, b, gamma, beta = [None] * k, [None] * k, [None] * (k - 1), [None
-                                                                   ] * (k - 1)
 
-    n_nodes = [input_dimension] + hidden_dimensions + [output_dimension]
-    np.random.seed(seed)
-    for layer in range(k):
-        #dimension of the layers
-        inputs = n_nodes[layer]
-        outputs = n_nodes[layer + 1]
-
-        # define standard deviation for weights and bias
-        scale = np.sqrt(1 / inputs) if he else std
-
-        #initialize weights, bias, gammas and betas
-        W[layer] = np.random.normal(size=(outputs, inputs), loc=0, scale=scale)
-        b[layer] = np.zeros((outputs, 1))
-        if layer < (k - 1):
-            gamma[layer] = np.ones((outputs, 1))
-            beta[layer] = np.zeros((outputs, 1))
-
-    """
-    """
-    std1 = 1 / np.sqrt(input_dimension)
-    std2 = 1 / np.sqrt(hidden_dimension)
-
-    W1 = np.random.normal(size=(hidden_dimension, input_dimension),
-                          loc=0,
-                          scale=std1)
-    W2 = np.random.normal(size=(output_dimension, hidden_dimension),
-                          loc=0,
-                          scale=std2)
-    np.random.seed(seed)
-    b1 = np.zeros(shape=(hidden_dimension, 1))
-    b2 = np.zeros(shape=(output_dimension, 1))
-    #W = np.array([W1, W2], dtype=object)  # perhaps remove "object"
-    #b = np.array([b1, b2], dtype=object)
-    #return W, b
-    
-    return W1, b1, W2, b2
-    """
     return W, b, gamma, beta
 
 
@@ -185,58 +136,6 @@ def relu(x):
     return np.maximum(0, x)
 
 
-"""
-# Jupoter notebook version...
-def EvaluateClassifier(
-    X,
-    W,
-    b,
-    gamma=None,
-    beta=None,
-    mean=None,
-    variance=None,
-    batch_normalization=False,
-):
-
-    # Create lists for storing the parameters by layers needed in backpropagation
-    k = len(W)
-    X_layers, S, S_BN = [X.copy()] + [None] * (k - 1), [None] * (
-        k - 1), [None] * (k - 1)
-    if batch_normalization:
-        if mean is None and variance is None:
-            return_mean_var = True
-            mean, var = [None] * (k - 1), [None] * (k - 1)
-        else:
-            return_mean_var = False
-    #print("W in evaluateclass shape: ", np.shape(W[0]))
-    #print("X_layers in evalauteclass shape", np.shape(X_layers[0]))
-    #print("b in evaliateclass shape", np.shape(b[0]))
-    # Iterate the hidden layers
-    for l in range(k - 1):
-        S[l] = W[l] @ X_layers[l] + b[l]
-        if batch_normalization:
-            if return_mean_var:
-                mean[l] = S[l].mean(axis=1).reshape(-1, 1)
-                var[l] = S[l].var(axis=1).reshape(-1, 1)
-            S_BN[l] = (S[l] - mean[l]) / (np.sqrt(var[l] + 1e-15))
-            S_BatchNorm_Scaled = S_BN[l] * gamma[l] + beta[l]
-            X_layers[l + 1] = relu(S_BatchNorm_Scaled)
-        else:
-            X_layers[l + 1] = relu(S[l])
-
-    # Output layer
-    P = softmax(W[k - 1] @ X_layers[k - 1] + b[k - 1])
-
-    if batch_normalization:
-        if return_mean_var:
-            return P, S_BN, S, X_layers[1:], mean, variance
-        else:
-            return P, S_BN, S, X_layers[1:]
-    else:
-        return P, X_layers[1:]
-"""
-
-
 def EvaluateClassifier(
     X,
     W,
@@ -273,7 +172,6 @@ def EvaluateClassifier(
     for l in range(k - 1):
         S[l] = W[l] @ X_layers[l] + b[l]
         if batch_normalization == True:
-            # (can remove return mean...)
             if return_mean_var == True:
                 mean[l] = S[l].mean(axis=1).reshape(-1, 1)
                 variance[l] = S[l].var(axis=1).reshape(-1, 1)
@@ -293,12 +191,6 @@ def EvaluateClassifier(
             return P, S_BN, S, X_layers[1:]
     else:
         return P, X_layers[1:]
-
-    #s_1 = W_1 @ X + b_1
-    #h = relu(s_1)
-    #s = W_2 @ h + b_2
-    #p = softmax(s)
-    #return p, h
 
 
 """
@@ -366,39 +258,35 @@ def ComputeCost(
     batch_norm=False,
 ):
 
-    #k = len(W)
     loss_regularization = 0
     if batch_norm == True:
         if mean is None and variance is None:
             P, S_BN, S, X_layers, mean, variance = EvaluateClassifier(
-                X_c,
-                W=W,
-                b=b,
-                gamma=gamma,
-                beta=beta,
-                batch_normalization=True)
+                X_c, W, b, gamma, beta, batch_normalization=True)
 
         else:
-            P, S_BN, S, X_layers, mean, variance = EvaluateClassifier(
-                X_c,
-                W,
-                b,
-                gamma=gamma,
-                beta=beta,
-                mean=mean,
-                variance=variance,
-                batch_normalization=True)
+            P, S_BN, S, X_layers = EvaluateClassifier(X_c,
+                                                      W,
+                                                      b,
+                                                      gamma,
+                                                      beta,
+                                                      mean,
+                                                      variance,
+                                                      batch_normalization=True)
     else:
         P, X_layers = EvaluateClassifier(X_c, W, b)
 
     N = X_c.shape[1]
     # loss function term
+    #loss_cross = sum(-np.log((Y * P).sum(axis=0)))
+
     loss_cross = -np.sum(
         Y * np.log(P)) / N  # seems to work best, aslo recommended by teacher
+
     # regularzation term
     for W_layer in W:
         loss_regularization += lmbda * (np.sum((W_layer**2)))
-
+        #loss_regularization += lmbda * (((W_layer**2).sum()))
     return loss_cross + loss_regularization
 
 
@@ -415,12 +303,19 @@ def ComputeAccuracy(X_c,
     if batch_norm == True:
         if mean is None and variance is None:
             probabilities, S_BN, S, X_layers, mean, variance = EvaluateClassifier(
-                X_c, W, b, gamma, beta, batch_norm=True)
+                X_c, W, b, gamma=gamma, beta=beta, batch_normalization=True)
         else:
-            probabilities, S_BN, S, X_layers, mean, variance = EvaluateClassifier(
-                X_c, W, b, gamma, beta, mean, variance, batch_norm=True)
+            probabilities, S_BN, S, X_layers = EvaluateClassifier(
+                X_c,
+                W,
+                b,
+                gamma,
+                beta,
+                mean,
+                variance,
+                batch_normalization=True)
     else:
-        probabilities, S_BN, S, X_layers = EvaluateClassifier(X_c, W, b)
+        probabilities, X_layers = EvaluateClassifier(X_c, W, b)
         #P, S_BN, S, X_layers[1:]
     #probabilities, hidden_activation = EvaluateClassifier(X_c, W1, b1, W2, b2)
     acc = np.mean(y_c == np.argmax(probabilities, 0))
@@ -460,7 +355,7 @@ def ComputeGradients(X_b,
     #create empty gradient vectorts
     #grad_W = [None] * k
     #grad_b = [None] * k
-    X_layers = [X.copy()] + X_layers
+    X_layers = [X_b.copy()] + X_layers
     if batch_norm == True:
 
         grad_W = [None] * k
@@ -486,7 +381,7 @@ def ComputeGradients(X_b,
         #see if this works!
 
         for layer in range(k - 2, -1, -1):
-            print("layer ", layer)
+            #print("layer ", layer)
             #for layer in range(k - 1, -1, -1):
 
             #compute gradients for the scale and offset parameters
@@ -541,80 +436,6 @@ def ComputeGradients(X_b,
     #else:
     #    return grad_W, grad_b
     #return grad_W2, grad_b2, grad_W1, grad_b1
-
-
-"""
-#jupiter version
-def ComputeGradients(X_b,
-                     Y_b,
-                     P_batch,
-                     S_BN,
-                     S,
-                     X_layers,
-                     W,
-                     b,
-                     lamb,
-                     gamma=None,
-                     beta=None,
-                     mean=None,
-                     variance=None,
-                     batch_norm=False):
-    N = X_b.shape[1]  # batch size
-    O = Y_b.shape[0]  # size of output data
-    k = len(W)
-    #create empty gradient vectorts
-    grad_W = [None] * k
-    grad_b = [None] * k
-    if batch_norm == True:
-        grad_gamma = [None] * (k - 1)
-        grad_beta = [None] * (k - 1)
-    # weights of gradients and bias for each layers k
-
-    #Backwards pass on batch
-    G_batch = -(Y_b - P_batch)
-
-    # jupiter notebook...
-    grad_W[k - 1] = 1 / N * (G_batch @ X_layers[k - 1].T) + 2 * lamb * W[k - 1]
-    grad_b[k - 1] = 1 / N * (G_batch @ np.ones((N, 1)))
-    G_batch = W[k - 1].T @ G_batch
-    G_batch = G_batch * (X_layers[k - 1] > 0)
-
-    #grad_b1 = (G_batch @ np.ones(shape=(N, 1)) / N).reshape(h.shape[0], 1)
-    #grad_W1 = G_batch @ X_b.T / N + 2 * lamb * W
-
-    #iterate through all layers:
-    #see if this works!
-    for layer in range(k - 2, -1, -1):
-        #for layer in range(k - 1, -1, -1):
-        if batch_norm == True:
-            #compute gradients for the scale and offset parameters
-            grad_gamma[layer] = (1 / N) * ((G_batch * S_BN[layer]) @ np.ones(
-                (N, 1)))
-            grad_beta[layer] = (1 / N) * (G_batch @ np.ones((N, 1)))
-
-            # Propagate the gradients through the scale and shift
-            G_batch = G_batch * (gamma[layer] @ np.ones((1, N)))
-
-            # Propagate G through the batch normalization
-            G_batch = BatchNormBackPass(G_batch, S[layer], mean[layer],
-                                        variance[layer])
-
-        # Gradient of weights and bias for layer l+1 (since for Python list indexes starts on 0)
-        grad_W[layer] = (1 / N) * (
-            G_batch @ X_layers[layer].T) + 2 * lamb * W[layer]
-        grad_b[layer] = (1 / N) * (G_batch @ np.ones((N, 1)))
-
-        # If layer>1 propagate G to the previous layer
-        if layer > 0:
-            G_batch = W[layer].T @ G_batch
-            G_batch = G_batch * (X_layers[layer] > 0)
-
-    if batch_norm == True:
-        return grad_W, grad_b, grad_gamma, grad_beta
-    else:
-        return grad_W, grad_b
-    #return grad_W2, grad_b2, grad_W1, grad_b1
-"""
 
 
 def ComputeGradsNum(X,
@@ -693,12 +514,8 @@ def test_gradients_num(X,
                        batch_norm=False):
     # Function for checking the analytical gradietn with the numerical ones.
     # Compute the gradients analytically
-    #P, h = EvaluateClassifier(X, W, b)
-    #print("test gradients.")
-    #print("In test_gradients, W len:", len(W))
     k = len(W)
     if batch_norm == True:
-        print("hej")
         P, S_BN, S, X_layers, mean, varinace = EvaluateClassifier(
             X,
             W,
@@ -883,19 +700,6 @@ def test_gradients_num(X,
         #grad_W_analytical = np.array(grad_W_analytical)
         grad_W_analytical = np.array(grad_W_analytical)
         grad_b_analytical = np.array(grad_b_analytical)
-        #grad_b1_analytical = np.array(grad_b_analytical)
-        #grad_b2_analytical = np.array(grad_b_analytical)
-
-        #grad_W_abs_diff = np.abs(grad_W_numerical - grad_W_analytical)
-        #grad_W1_abs_diff = np.abs(grad_W1_numerical - grad_W1_analytical)
-        #grad_W2_abs_diff = np.abs(grad_W2_numerical - grad_W2_analytical)
-        #grad_b_abs_diff = np.abs(
-        #    np.array(grad_b_numerical) - np.array(grad_b_analytical))
-
-        #grad_b1_abs_diff = np.abs(
-        #    np.array(grad_b1_numerical) - np.array(grad_b1_analytical))
-        #grad_b2_abs_diff = np.abs(
-        #    np.array(grad_b2_numerical) - np.array(grad_b2_analytical))
         """
         grad_W_abs_diff_slow = np.abs(grad_W_numerical_slow - grad_W_analytical)
         grad_b_abs_diff_slow = np.abs(grad_b_numerical_slow - grad_b_analytical)
@@ -938,7 +742,8 @@ def test_gradients_num(X,
 #grad_b_abs_sum = np.maximum(
 #    np.array(([np.abs(grad_b_numerical) + np.abs(grad_b_analytical)])),
 #    0.00000001)
-
+"""
+#------Testing the gradients------
 X = X_train[0:30, 0:10]
 Y = Y_train[:, 0:10]
 #X = X_train
@@ -950,14 +755,7 @@ output_dimension = Y_train.shape[0]
 W, b, gamma, beta = init_weights(input_dimension, hidden_dimensions,
                                  output_dimension)
 
-#print("W len after init weights: ", np.shape(W[1]))
-#print("b len after init weights: ", np.shape(b[1]))
-
-#print("gamma len after init weights: ", np.shape(gamma))
-#print("beta len after init weights: ", np.shape(beta))
-
-#print("W has shape", np.shape(W[0]))
-"""
+# test gradients without batch norm
 test_gradients_num(X,
                    Y,
                    W,
@@ -966,7 +764,8 @@ test_gradients_num(X,
                    gamma=None,
                    beta=None,
                    batch_norm=False)
-"""
+
+# test gradients with batch norm
 test_gradients_num(X,
                    Y,
                    W,
@@ -975,11 +774,23 @@ test_gradients_num(X,
                    gamma=gamma,
                    beta=beta,
                    batch_norm=True)
-quit()
+"""
 
 
-def miniBatchGD(X_trainn, Y_trainn, y_trainn, W1, b1, W2, b2, X_validation,
-                Y_validation, y_validation, dict, lmbda):
+def miniBatchGD(X_trainn,
+                Y_trainn,
+                y_trainn,
+                W,
+                b,
+                X_validation,
+                Y_validation,
+                y_validation,
+                dict,
+                lmbda,
+                gamma=None,
+                beta=None,
+                batch_normalization=False,
+                alpha=0.9):
     #need x_train- X_test, X_validation and Y_validation as inputs...
     # take out params from dictionary
     #eta = GDparams['eta']
@@ -1012,71 +823,180 @@ def miniBatchGD(X_trainn, Y_trainn, y_trainn, W1, b1, W2, b2, X_validation,
 
     t = 0  # time that we update the learning rates over
     eta = eta_min
-    n_batch = int(np.floor(X_trainn.shape[1] / n_batch))
+    #n_batch = int(np.floor(X_trainn.shape[1] / n_batch))
     for epoch in range(n_epochs):
-        #np.random.seed(epoch)
+        np.random.seed(epoch)
         # permutation of indicies
-        #shuffled_indexes = np.random.permutation(N)
+        shuffled_indexes = np.random.permutation(N)
         for j in range(N // n_batch):
+            print("eta is: ", eta)
             j_start = j * n_batch
             j_end = (j + 1) * n_batch
 
             # batch of shuffled indicies
-            #X_batch = X_trainn[:, shuffled_indexes[j_start:j_end]]
-            #Y_batch = Y_trainn[:, shuffled_indexes[j_start:j_end]]
+            X_batch = X_trainn[:, shuffled_indexes[j_start:j_end]]
+            Y_batch = Y_trainn[:, shuffled_indexes[j_start:j_end]]
 
             #batching without schuffling
-            X_batch = X_trainn[:, j_start:j_end]
-            Y_batch = Y_trainn[:, j_start:j_end]
+            #X_batch = X_trainn[:, j_start:j_end]
+            #Y_batch = Y_trainn[:, j_start:j_end]
             #grad_W, grad_b = ComputeGradients(X_batch, Y_batch, W_star, b_star,
             #                                  lmbda)
 
             #print("Y (in miniBatchGD) shape: ", Y_batch.shape)
-            P, H = EvaluateClassifier(X_batch, W1, b1, W2, b2)
 
-            grad_W2, grad_b2, grad_W1, grad_b1 = ComputeGradients(
-                X_batch, Y_batch, P, H, W1, W2, lmbda)
-            W2 -= eta * grad_W2
-            b2 -= eta * grad_b2
-            W1 -= eta * grad_W1
-            b1 -= eta * grad_b1
+            if batch_normalization == True:
+                P, S_BN, S, X_layers, mean, variance = EvaluateClassifier(
+                    X_batch,
+                    W=W,
+                    b=b,
+                    gamma=gamma,
+                    beta=beta,
+                    batch_normalization=True)
+                if t == 0:
+                    mean_avg = mean_train
+                    var_avg = variance
+                else:
+                    mean_avg = [
+                        alpha * mean_avg[layer] + (1 - alpha) * mean[layer]
+                        for layer in range(len(mean))
+                    ]
+                    var_avg = [
+                        alpha * var_avg[layer] + (1 - alpha) * variance[layer]
+                        for layer in range(len(variance))
+                    ]
+                grad_W, grad_b, grad_gamma, grad_beta = ComputeGradients(
+                    X_batch,
+                    Y_batch,
+                    P,
+                    S_BN=S_BN,
+                    S=S,
+                    X_layers=X_layers,
+                    W=W,
+                    b=b,
+                    lamb=lmbda,
+                    gamma=gamma,
+                    beta=beta,
+                    mean=mean,
+                    variance=variance,
+                    batch_norm=True)
+
+            else:
+                P, X_layers = EvaluateClassifier(X_batch, W, b)
+                grad_W, grad_b = ComputeGradients(
+                    X_batch,
+                    Y_batch,
+                    P,
+                    S_BN=None,
+                    S=None,
+                    X_layers=X_layers,
+                    W=W,
+                    b=b,
+                    lamb=lmbda,
+                    gamma=None,
+                    beta=None,
+                    mean=None,
+                    variance=None,
+                    batch_norm=batch_normalization)
+                #grad_W, grad_b, = ComputeGradients(X_batch, Y_batch, P,
+                #                                   X_layers, W, b, lmbda)
+            W = [W[layer] - eta * grad_W[layer] for layer in range(len(W))]
+            b = [b[layer] - eta * grad_b[layer] for layer in range(len(b))]
+            if batch_normalization == True:
+                gamma = [
+                    gamma[layer] - eta * grad_gamma[layer]
+                    for layer in range(len(gamma))
+                ]
+                beta = [
+                    beta[layer] - eta * grad_beta[layer]
+                    for layer in range(len(beta))
+                ]
             if t <= n_s:
                 eta = eta_min + t / n_s * (eta_max - eta_min)
             elif t <= 2 * n_s:
                 eta = eta_max - (t - n_s) / n_s * (eta_max - eta_min)
             t = (t + 1) % (2 * n_s)
+        if batch_normalization == True:
+            nn_dict['epochs'].append(epoch + 1)
 
-        nn_dict['epochs'].append(epoch + 1)
-        #print("Accuracy shape: ", ComputeAccuracy(X, y, W_star, b_star))
-        #nn_dict['train_accuracy'].append(
-        #    ComputeAccuracy(X_trainn, y_trainn, W_star, b_star))
-        nn_dict['train_accuracy'].append(
-            ComputeAccuracy(X_trainn, y_trainn, W1, b1, W2, b2))
+            nn_dict['train_accuracy'].append(
+                ComputeAccuracy(X_trainn,
+                                y_trainn,
+                                W,
+                                b,
+                                gamma=gamma,
+                                beta=beta,
+                                mean=mean_avg,
+                                variance=var_avg,
+                                batch_norm=True))
 
-        #nn_dict['train_loss'].append(
-        #    ComputeCost(X_trainn, Y_trainn, W_star, b_star, lmbda))
-        nn_dict['train_cost'].append(
-            ComputeCost(X_trainn, Y_trainn, W1, b1, W2, b2, lmbda))
+            nn_dict['train_cost'].append(
+                ComputeCost(X_trainn,
+                            Y_trainn,
+                            W,
+                            b,
+                            lmbda,
+                            gamma=gamma,
+                            beta=beta,
+                            mean=mean_avg,
+                            variance=var_avg,
+                            batch_norm=True))
 
-        nn_dict['train_loss'].append(
-            compute_loss(X_trainn, Y_trainn, W1, b1, W2, b2, lmbda))
+            nn_dict['validation_acuracy'].append(
+                ComputeAccuracy(X_validation,
+                                y_validation,
+                                W,
+                                b,
+                                gamma=gamma,
+                                beta=beta,
+                                mean=mean_avg,
+                                variance=var_avg,
+                                batch_norm=True))
+            nn_dict['validation_cost'].append(
+                ComputeCost(X_validation,
+                            Y_validation,
+                            W,
+                            b,
+                            lmbda,
+                            gamma=gamma,
+                            beta=beta,
+                            mean=mean_avg,
+                            variance=var_avg,
+                            batch_norm=True))
+        else:
 
-        #nn_dict['validation_acuracy'].append(
-        #    ComputeAccuracy(X_validation, y_validation, W_star, b_star))
-        nn_dict['validation_acuracy'].append(
-            ComputeAccuracy(X_validation, y_validation, W1, b1, W2, b2))
-        nn_dict['validation_cost'].append(
-            ComputeCost(X_validation, Y_validation, W1, b1, W2, b2, lmbda))
-        #nn_dict['validation_loss'].append(
-        #    ComputeCost(X_validation, Y_validation, W_star, b_star, lmbda))
-        nn_dict['validation_loss'].append(
-            compute_loss(X_validation, Y_validation, W1, b1, W2, b2, lmbda))
+            nn_dict['epochs'].append(epoch + 1)
+            #print("Accuracy shape: ", ComputeAccuracy(X, y, W_star, b_star))
+            #nn_dict['train_accuracy'].append(
+            #    ComputeAccuracy(X_trainn, y_trainn, W_star, b_star))
+            nn_dict['train_accuracy'].append(
+                ComputeAccuracy(X_trainn, y_trainn, W, b))
 
-    nn_dict['train_loss_mean'] = ((np.mean(nn_dict['train_loss'])))
+            #nn_dict['train_loss'].append(
+            #    ComputeCost(X_trainn, Y_trainn, W_star, b_star, lmbda))
+            nn_dict['train_cost'].append(
+                ComputeCost(X_trainn, Y_trainn, W, b, lmbda))
+
+            #nn_dict['train_loss'].append(
+            #    compute_loss(X_trainn, Y_trainn, W1, b1, W2, b2, lmbda))
+
+            #nn_dict['validation_acuracy'].append(
+            #    ComputeAccuracy(X_validation, y_validation, W_star, b_star))
+            nn_dict['validation_acuracy'].append(
+                ComputeAccuracy(X_validation, y_validation, W, b))
+            nn_dict['validation_cost'].append(
+                ComputeCost(X_validation, Y_validation, W, b, lmbda))
+            #nn_dict['validation_loss'].append(
+            #    ComputeCost(X_validation, Y_validation, W_star, b_star, lmbda))
+
+            #nn_dict['validation_loss'].append(
+            #   compute_loss(X_validation, Y_validation, W1, b1, W2, b2, lmbda))
+
+    #nn_dict['train_loss_mean'] = ((np.mean(nn_dict['train_loss'])))
     #nn_dict['train_cost_mean'] = np.mean(nn_dict['train_cost'])
     nn_dict['train_accuracy_mean'] = (np.mean(nn_dict['train_accuracy']))
 
-    nn_dict['validation_loss_mean'] = ((np.mean(nn_dict['validation_loss'])))
+    #nn_dict['validation_loss_mean'] = ((np.mean(nn_dict['validation_loss'])))
     #nn_dict['validation_cost_mean'] = np.mean(nn_dict['validation_cost'])
     nn_dict['validation_acuracy_mean'] = ((np.mean(
         nn_dict['validation_acuracy'])))
@@ -1085,8 +1005,34 @@ def miniBatchGD(X_trainn, Y_trainn, y_trainn, W1, b1, W2, b2, X_validation,
     #      str(nn_dict['train_loss'][-1]) + ", train accuracy=" +
     #      str(nn_dict['train_accuracy'][-1]) + "\r")
 
-    #return W_star, b_star, nn_dict
-    return W1, b1, W2, b2, nn_dict
+    if batch_normalization == True:
+        train_accuracy = ComputeAccuracy(X_trainn,
+                                         y_trainn,
+                                         W,
+                                         b,
+                                         gamma=gamma,
+                                         beta=beta,
+                                         mean=mean_avg,
+                                         variance=var_avg,
+                                         batch_norm=True)
+        validation_accuracy = ComputeAccuracy(X_validation,
+                                              y_validation,
+                                              W,
+                                              b,
+                                              gamma=gamma,
+                                              beta=beta,
+                                              mean=mean_avg,
+                                              variance=var_avg,
+                                              batch_norm=True)
+        print("The accuracy on the training set is: ", train_accuracy)
+        print("The accuracy on the validation set is: ", validation_accuracy)
+        return W, b, gamma, beta, mean_avg, var_avg, nn_dict
+    else:
+        train_accuracy = ComputeAccuracy(X_trainn, y_trainn, W, b)
+        validation_accuracy = ComputeAccuracy(X_validation, y_validation, W, b)
+        print("The accuracy on the training set is: ", train_accuracy)
+        print("The accuracy on the validation set is: ", validation_accuracy)
+        return W, b, nn_dict
 
 
 def montage(W, label_names, GDparams):
@@ -1113,36 +1059,36 @@ def montage(W, label_names, GDparams):
 
 def plot_learning_curve(nn_dictionary):
     """ Function for plotting the accuracy and loss for the training/validation data over epoches"""
-    fig, ax = plt.subplots(nrows=3, ncols=1, figsize=(12, 5))
+    fig, ax = plt.subplots(nrows=2, ncols=1, figsize=(12, 5))
 
     epochs = nn_dictionary['epochs']
 
-    train_loss = nn_dictionary['train_loss']
+    #train_loss = nn_dictionary['train_loss']
     train_accuracy = nn_dictionary['train_accuracy']
     train_cost = nn_dictionary['train_cost']
 
-    validation_loss = nn_dictionary['validation_loss']
+    #validation_loss = nn_dictionary['validation_loss']
     validation_acuracy = nn_dictionary['validation_acuracy']
     validation_cost = nn_dictionary['validation_cost']
 
-    ax[0].plot(epochs, train_loss, label="Train loss")
-    ax[0].plot(epochs, validation_loss, label="Validation loss")
+    #ax[0].plot(epochs, train_loss, label="Train loss")
+    #ax[0].plot(epochs, validation_loss, label="Validation loss")
 
+    #ax[0].legend()
+    #ax[0].set(xlabel='Epoch', ylabel='Loss (cross entropy)')
+    #ax[0].grid()
+
+    ax[0].plot(epochs, validation_cost, label="Validation loss")
+    ax[0].plot(epochs, train_cost, label="Train loss")
     ax[0].legend()
-    ax[0].set(xlabel='Epoch', ylabel='Loss (cross entropy)')
+    ax[0].set(xlabel='Epoch', ylabel='Total Loss')
     ax[0].grid()
 
-    ax[1].plot(epochs, validation_acuracy, label="validation_acuracy")
-    ax[1].plot(epochs, train_accuracy, label="train_accuracy")
+    ax[1].plot(epochs, validation_acuracy, label="Validation Acuracy")
+    ax[1].plot(epochs, train_accuracy, label="Train Accuracy")
     ax[1].legend()
-    ax[1].set(xlabel='Epoch', ylabel='Accuracy')
+    ax[1].set(xlabel='Epoch', ylabel='Accuracy (%)')
     ax[1].grid()
-
-    ax[2].plot(epochs, validation_cost, label="validation_cost")
-    ax[2].plot(epochs, train_cost, label="train_cost")
-    ax[2].legend()
-    ax[2].set(xlabel='Epoch', ylabel='Cost')
-    ax[2].grid()
 
     plt.show()
 
@@ -1163,14 +1109,16 @@ def plot_lambda_search(GDparams_search, lambdas):
     plt.show()
 
 
+"""
 lambda_ = 0
 input_dimension = X_train.shape[0]
 #input_dimension = 20
-hidden_dimension = 50
+hidden_dimension = [50]
 output_dimension = Y_train.shape[0]
 #W, b = init_weights(input_dimension, hidden_dimension, output_dimension)
 W1, b1, W2, b2 = init_weights(input_dimension, hidden_dimension,
                               output_dimension)
+"""
 
 # --------------- testing gradients ---------------
 #X = X_train[0:20, [0]]
@@ -1209,7 +1157,8 @@ lambda_ = 0.001
 #X = X_train
 #Y = Y_train
 #y = y_train
-
+"""
+#  smaller dataset
 X_v = X_val
 Y_v = Y_val
 y_v = y_val
@@ -1221,13 +1170,14 @@ lambda_ = 0.01
 GDparams = {
     'n_batch': 100,  # size of each batch
     'eta': 0.01,
-    'n_epochs': 48,
+    'n_epochs': 20,
     'eta_max': 1e-1,
     'eta_min': 1e-5,  # arrcording to instructions
     't': 0,
-    'n_s': 800,
+    'n_s': 2250,
     'etas_varying': [],
 }
+"""
 
 ### Excersise 3: batch_size = 100
 """
@@ -1310,11 +1260,11 @@ GDparams_search = {
     'n_batch': 100,
     'eta_min': 1e-5,
     'eta_max': 1e-1,
-    'eta': 0.01,
+    'eta': 0.1,
     'cycles': 2,
-    'n_epochs': 10,
+    'n_epochs': 20,
     't': 0,
-    #'n_s': 1000,
+    'n_s': 2250,
     'etas_varying': [],
     'loss_train_mean': [],
     'acc_train_mean': [],
@@ -1324,12 +1274,44 @@ GDparams_search = {
     'validation_acuracy_mean': []
 }
 
-GDparams_search['n_s'] = int(2 * images_train.shape[1] /
-                             GDparams_search['n_batch'])
+#GDparams_search['n_s'] = int(2 * images_train.shape[1] /
+#                             GDparams_search['n_batch'])
+GDparams_search['n_s'] = int(5 * 45000 / GDparams_search['n_batch'])
 input_dimension = X_train_search.shape[0]
 #input_dimension = 20
-hidden_dimension = 50
+#hidden_dimensions = [50, 50]
+hidden_dimensions = [50, 30, 20, 20, 10, 10, 10, 10]
 output_dimension = Y_train_search.shape[0]
+
+#input_dimension = X.shape[0]
+#hidden_dimensions = [50, 50]
+#output_dimension = Y_train.shape[0]
+W, b, gamma, beta = init_weights(input_dimension, hidden_dimensions,
+                                 output_dimension)
+lamb = 0.005
+#return W, b, gamma, beta, mean_avg, var_avg, nn_dict
+#W, b, nn_dict = miniBatchGD(X_train_search, Y_train_search, y_train_search, W,
+#                            b, X_val_search, Y_val_search, y_val_search,
+#                            GDparams_search, lamb)
+
+W, b, gamma, beta, mean_avg, var_avg, nn_dict = miniBatchGD(
+    X_train_search,
+    Y_train_search,
+    y_train_search,
+    W,
+    b,
+    X_val_search,
+    Y_val_search,
+    y_val_search,
+    GDparams_search,
+    lamb,
+    gamma=gamma,
+    beta=beta,
+    batch_normalization=True)
+
+plot_learning_curve(nn_dict)
+
+print("done")
 
 
 def lambda_search():
@@ -1352,14 +1334,11 @@ def lambda_search():
         print("going for the grid search! ")
         #print("lambdas: ", list_lambdas_coarse)
         #grid_search()
-        W1, b1, W2, b2 = init_weights(input_dimension, hidden_dimension,
-                                      output_dimension)
-
-        W1, b1, W2, b2, nn_dict = miniBatchGD(X_train_search, Y_train_search,
-                                              y_train_search, W1, b1, W2, b2,
-                                              X_val_search, Y_val_search,
-                                              y_val_search, GDparams_search,
-                                              lamb)
+        W, b, = init_weights(input_dimension, hidden_dimensions,
+                             output_dimension)
+        W, b, gamma, beta, mean_avg, var_avg, nn_dict = miniBatchGD(
+            X_train_search, Y_train_search, y_train_search, W, b, X_val_search,
+            Y_val_search, y_val_search, GDparams_search, lamb)
         #print("lambda =  %s, Train accuracy mean : %s " %
         #      (lamb, nn_dict['train_accuracy_mean']))
         #print("lambda =  %s, Train loss mean : %s " %
@@ -1396,7 +1375,7 @@ def lambda_search():
 
 #------------------ Train with best Lambda found ---------------------------
 #lambda_search()
-
+"""
 best_lambda = 10**(-2.816)
 W1, b1, W2, b2 = init_weights(input_dimension, hidden_dimension,
                               output_dimension)
@@ -1409,6 +1388,7 @@ final_performace = ComputeAccuracy(X_val_search, Y_val_search, W1, b1, W2, b2)
 print("Final accuracy on the test dataset with best lambda is: ",
       final_performace)
 plot_learning_curve(nn_dict)
+"""
 
 #miniBatchGD()
 #nn_dict['validation_acuracy']
