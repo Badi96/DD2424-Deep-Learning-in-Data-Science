@@ -143,7 +143,7 @@ def ComputeCost(
     variance=None,
     batch_norm=False,
 ):
-
+    """ Calculated the total loss of the NN"""
     loss_regularization = 0
     if batch_norm == True:
         if mean is None and variance is None:
@@ -187,7 +187,7 @@ def ComputeAccuracy(X_c,
                     mean=None,
                     variance=None,
                     batch_norm=False):
-    #calculates mean accuracy of predictions
+    """calculates mean accuracy of predictions"""
     if batch_norm == True:
         if mean is None and variance is None:
             probabilities, _, _, _, mean, variance = EvaluateClassifier(
@@ -234,6 +234,7 @@ def ComputeGradients(X_b,
                      mean=None,
                      variance=None,
                      batch_norm=False):
+    """Calcultes the gradients of all  the weights, bias, gammas and betas on the Neural netowrk according to the lecture notes."""
     N = X_b.shape[1]  # batch size
     O = Y_b.shape[0]  # size of output data
     k = len(W)
@@ -375,10 +376,10 @@ def test_gradients_num(X,
                        gamma=None,
                        beta=None,
                        batch_norm=False):
-    # Function for checking the analytical gradietn with the numerical ones.
+    """Function for checking the analytical gradietn with the numerical ones."""
     # Compute the gradients analytically
     k = len(W)
-    if batch_norm == True:
+    if batch_norm is True:
         P, S_BN, S, X_layers, mean, varinace = EvaluateClassifier(
             X,
             W,
@@ -400,7 +401,6 @@ def test_gradients_num(X,
             mean=None,
             var=None,
             batch_normalization=batch_norm)
-        #P, S_BN, S, X_layers[1:], mean, variance
 
         grad_W_analytical, grad_b_analytical, grad_gamma_analytical, grad_beta_analytical = ComputeGradients(
             X,
@@ -965,6 +965,7 @@ plot_learning_curve(nn_dict)
 
 
 def lambda_search(W, b, gamma, beta):
+    """Function for testing performace over range of lambda values"""
     n_samples = 10
     lamb_max, lamb_min = -1.7, -2.75
     lambdas = []
