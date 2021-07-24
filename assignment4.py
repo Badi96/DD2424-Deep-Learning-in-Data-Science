@@ -1,8 +1,6 @@
 import numpy as np
 import copy
 import matplotlib.pyplot as plt
-import json
-import html
 import sys
 figure = 0
 book_data = open('goblet_book.txt', 'r').read()
@@ -22,8 +20,14 @@ for index, chatacter in enumerate(book_chars):
 print(char_to_ind)
 
 
-class RNN:
-    def __init__(self, K=1, m=100, eta=0.1, seq_length=25, sigm=0.01):
+class Vanilla_RNN:
+    def __init__(self,
+                 book_chars,
+                 K=1,
+                 m=100,
+                 eta=0.1,
+                 seq_length=25,
+                 sigm=0.01):
         self.m = m
         self.eta = eta
         self.K = K
@@ -42,3 +46,11 @@ class RNN:
             'dLdc': np.zeros((self.K, 1))
         }
         self.numerical_gradinets = copy.deepcopy
+
+        #?
+        self.grad_diff = copy.deepcopy(self.gradients)
+        self.m_theta = copy.deepcopy(self.gradients)
+
+        for index, chatacter in enumerate(book_chars):
+            self.char_to_ind[chatacter] = index
+            self.ind_to_char[index] = chatacter
