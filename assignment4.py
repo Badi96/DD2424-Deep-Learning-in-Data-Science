@@ -1,8 +1,8 @@
 import numpy as np
 import copy
 import matplotlib.pyplot as plt
-import sys
-from keras.preprocessing.text import Tokenizer
+import matplotlib.pyplot as plt
+from numpy.core.fromnumeric import squeeze
 
 
 class Vanilla_RNN:
@@ -10,22 +10,14 @@ class Vanilla_RNN:
         # K=1,
         self.m = m
         self.eta = eta
-        #self.K = K
-        #self.char_to_ind = dict()
-        #self.ind_to_char = dict()
-        #self.book_data = open('goblet_book.txt', 'r').read()
         self.book_data = book_data
-        #self.book_chars = set(self.book_data)
-        #for index, chatacter in enumerate(book_data):
-        #    self.char_to_ind[chatacter] = index
-        #    self.ind_to_char[index] = chatacter
+        self.unique_book_data = set(book_data)
+        self.char_to_ind = {}
+        self.ind_to_char = {}
 
-        self.tokenizer = Tokenizer(char_level=True, lower=False)
-        self.tokenizer.fit_on_texts(self.book_data)
-        #sequence_of_int = tokenizer.texts_to_sequences(book_data)
-        #print(sequence_of_int)
-        self.char_to_ind = self.tokenizer.word_index
-        self.ind_to_char = self.tokenizer.index_word
+        for index, item in enumerate(self.unique_book_data):
+            self.char_to_ind[item] = index
+            self.ind_to_char[index] = item
 
         self.K = len(self.char_to_ind)
         self.seq_length = seq_length
@@ -35,13 +27,7 @@ class Vanilla_RNN:
         self.W = np.random.rand(m, m) * sigma  # Weight matrix W
         self.V = np.random.rand(self.K, m) * sigma  # Weight matrix V
 
-        #self.gradients = {
-        #    'dLdU': np.zeros((self.m, self.K)),
-        #    'dLdW': np.zeros((self.m, self.m)),
-        #    'dLdV': np.zeros((self.K, self.m)),
-        #    'dLdb': np.zeros((self.m, 1)),
-        #    'dLdc': np.zeros((self.K, 1))
-        #}
+        # dictionary for gradients
         self.gradients = {
             'U': np.zeros((self.m, self.K)),
             'W': np.zeros((self.m, self.m)),
@@ -53,201 +39,189 @@ class Vanilla_RNN:
         self.grad_diff = copy.deepcopy(self.gradients)
         self.m_theta = copy.deepcopy(self.gradients)
 
-        #k = len(self.book_chars)
-        #self.char_to_ind = dict()
-        #self.ind_to_char = dict()
-        #for index, chatacter in enumerate(book_chars):
-        #    self.char_to_ind[chatacter] = index
-        #    self.ind_to_char[index] = chatacter
+    def softmax(self, a):
+        s = np.clip(a, -700, 700)
+        return np.exp(s) / np.sum(np.exp(s), axis=0)
 
-    def softmax(self, o_t):
-        p = np.exp(o_t)
-        if np.sum(p, axis=0) == 0:
-            #remove later
-            print('WARNING: zero in p')
-        else:
-            p = p / np.sum(p, axis=0)
-        #return p / np.sum(p, axis=0)
-        return p
+    def one_hot_encoding(self, vector):
+        matrix = np.zeros((len(self.char_to_ind), len(vector)))
+        for i in range(len(vector)):
+            matrix[self.char_to_ind[vector[i]], i] = 1
+        return matrix
 
-    """
-    def one_hot_encoding(self, char_index):
-        # Use CHAR_TO_INDEX when calling this function!!
-        char_one_hot = np.zeros((self.K, 1))
-        char_one_hot[char_index, 0] = 1
-        return char_one_hot
-    """
-
-    def one_hot_encoding(self, ch):
-        print("size of ch", ch)
-
-        x = []
-        for c in ch:
-            x0 = np.zeros((self.K, 1))
-            x0[self.char_to_ind[c] - 1] = 1
-            x.append(x0)
-        y = np.array(x)
-        y = np.squeeze(y)
-        y = y.T
-        if len(y.shape) == 1:
-            y = np.reshape(y, (-1, 1))
-        return y
-
-    def synthesize(self, x0, h0, length):
-        Y = []
-        x_next = x0
-        for i in range(length):
-            a_t = self.W @ h0 + self.U @ x_next + self.b
-            h_t = np.tanh(a_t)
-            o_t = self.V @ h_t + self.c
-            print("W shape: ", self.W.shape)
-            print("h0 shape: ", h0.shape)
-
-            print("U shape: ", self.U.shape)
-            print("x_next shape: ", x_next.shape)
-            print("b shape: ", self.b.shape)
-            #a_t = np.dot(self.W, h0) + np.dot(self.U, x_next) + self.b
-            #h_t = np.tanh(a_t)
-            #o_t = np.dot(self.V, h_t) + self.c
-            p_t = self.softmax(o_t)
-            c = np.cumsum(p_t)
-            r = np.random.rand()
-            ii = np.where(c - r > 0)[0][0]
-            x_next = self.one_hot_encoding(self.ind_to_char[ii + 1])
-            #xnext = np.random.multinomial(
-            #    1,
-            #    np.squeeze(p),
-            #)[:, np.newaxis]
-            # save one-hpt encoding of created next sequence
-            #Y[:, [i]] = xnext[:, [0]]
-            Y.append(x_next)
-        Y = np.array(Y)
-        Y = np.squeeze(Y)
-        Y = Y.T
-        #Y = (np.squeeze(np.array(Y))).T
-        return Y
-
-    """
-    def synthesize(self, x0, h0, length, stop_character_one_hot=None):
-        Y = np.zeros(shape=(self.output_size, length))
-        x = x0
-        h_prev = h0
-        for t in range(length):
-            a = self.W @ h_prev + self.U @ x + self.b
-            h = self.tanh(a)
+    def synthesize(self, x_0, h_0, num_samples):
+        x = np.copy(x_0)
+        h = np.copy(h_0)[:, np.newaxis]
+        samples = np.zeros((x_0.shape[0], num_samples))
+        for t in range(num_samples):
+            a = self.W @ h + self.U @ x + self.b
+            h = np.tanh(a)
             o = self.V @ h + self.c
             p = self.softmax(o)
-            # Create next sequence input randomly from predicted output distribution
-            x = np.random.multinomial(1, np.squeeze(p))[:, np.newaxis]
-            # Save the one-hot encoding of created next sequence input
-            Y[:, [t]] = x[:, [0]]
-            # Break loop if created next sequence input is equal to given stop character
-            if all(x == stop_character_one_hot):
-                Y = Y[:, 0:(t + 1)]
-                break
-            # Update previous hidden state for next sequence iteration
-            h_prev = h
-        return Y
-    """
-    """
+            # Select random character according to probabilities
+            chosen_characters = np.random.choice(range(x.shape[0]),
+                                                 1,
+                                                 p=p.flatten())
+            x = np.zeros(x.shape)
+            x[chosen_characters] = 1
+            samples[:, t] = x.flatten()
 
-    def forward_pass(self, x0, y0, h0):
-        h = np.zeros((h0.shape[0], x0.shape[1]))
-        a = copy.deepcopy(h)
-        probabilities = np.zeros(x0.shape)
-        for t in range(x0.shape[1]):
-            if t == 0:
-                a[:,
-                  t] = (self.W @ h0[:, np.newaxis] +
-                        self.U @ x0[:, t][:, np.newaxis] + self.b).flatten()
-            else:
-                a[:,
-                  t] = (self.W @ self.h[:, t - 1][:, np.newaxis] +
-                        self.U @ x0[:, t][:, np.newaxis] + self.b).flatten()
-            h[:, t] = np.tanh(a[:, t])
-            self.o = self.V @ h[:, t][:, np.newaxis] + self.c
-            p = self.softmax(self.o)
-            probabilities[:, t] = p.flatten()
-        return probabilities, h, a
-    """
+        return samples
 
-    def fwd_pass(self, x0, y0, h0):
-        # No y0 NEEDED!
-        h = [h0]
-        loss = 0
-        #at = []
-        probability_t = []
-        sequence_length = x0.shape[1]
-        for t in range(sequence_length):
-            #try @ and see if it works..
-            a = np.dot(self.W, h[t]) + np.dot(self.U,
-                                              np.reshape(x0[:, t],
-                                                         (-1, 1))) + self.b
-            #    params['U'], np.reshape(x0[:, t], (-1, 1))) + params['b']
-            #if t == 0:
-            #    a = self.W @ h0 + self.U @ x0[:, t] + self.b
-            #else:
-            #a = self.W @ h[t] + self.U @ x0[:, t] + self.b
-            h.append(np.tanh(a))
-            o = np.dot(self.V, h[t + 1]) + self.c
-            #o = self.V @ h[t + 1] + self.c
-            probability_t.append(self.softmax(o))
-            #loss += np.log(y0[:, [t]].T @ probability_t[t])[0, 0]
-            loss -= np.log(y0[:, [t]].T @ probability_t[t])[0, 0]
-
-        return loss, h, probability_t
-
-    def back_propagation(self, x, y, h, p):
-        dLdo = []
-
+    def forward_pass(self, x, h_0):
+        #print("shape of x is: ", x.shape)
+        h = np.zeros((h_0.shape[0], x.shape[1]))
+        a = np.zeros((h_0.shape[0], x.shape[1]))
+        probability_t = np.zeros(x.shape)
         for t in range(x.shape[1]):
-            dLdo.append(-(np.reshape(y[:, t], (-1, 1)).T - p[t].T))
-            #self.gradients['dLdV'] += np.dot(dLdo[t].T, h[t + 1].T)
-            #self.gradients['dLdc'] += dLdo[t].T
-            self.gradients['V'] += np.dot(dLdo[t].T, h[t + 1].T)
-            self.gradients['c'] += dLdo[t].T
-        dLda = np.zeros((1, self.m))
+            if t == 0:
+                a[:, t] = (self.W @ h_0[:, np.newaxis] +
+                           self.U @ x[:, t][:, np.newaxis] + self.b).flatten()
+            else:
+                a[:, t] = (self.W @ h[:, t - 1][:, np.newaxis] +
+                           self.U @ x[:, t][:, np.newaxis] + self.b).flatten()
+            h[:, t] = np.tanh(a[:, t])
+            o = self.V @ h[:, t][:, np.newaxis] + self.c
+            p = self.softmax(o)
+            probability_t[:, t] = p.flatten()
 
-        for t in range(x.shape[1] - 1, -1, -1):
-            dLdh = np.dot(dLdo[t], self.V) + np.dot(dLda, self.W)
-            dLda = np.dot(dLdh, np.diag(1 - h[t + 1][:, 0]**2))
+        return probability_t, h, a
 
-            #self.gradients['dLdW'] += np.dot(dLda.T, h[t].T)
-            #self.gradients['dLdU'] += np.dot(dLda.T,
-            #                                 np.reshape(x[:, t], (-1, 1)).T)
-            #self.gradients['dLdb'] += dLda.T
+    def back_propagation(self, y, p, h, h_prev, a, x):
+        #gradient lists
+        grad_h = list()
+        grad_a = list()
+        # Computation the final gradient of o
+        grad_o = -(y - p).T
+        # Compute the final gradients of h and a
+        grad_h.append(grad_o[-1][np.newaxis, :] @ self.V)
+        grad_a.append(
+            (grad_h[-1] @ np.diag(1 - np.power(np.tanh(a[:, -1]), 2))))
+        # Computing the remaining gradients (o, h, and a)
+        for t in reversed(range(y.shape[1] - 1)):
+            grad_h.append(grad_o[t][np.newaxis, :] @ self.V +
+                          grad_a[-1] @ self.W)
+            grad_a.append(
+                grad_h[-1] @ np.diag(1 - np.power(np.tanh(a[:, t]), 2)))
 
-            self.gradients['W'] += np.dot(dLda.T, h[t].T)
-            self.gradients['U'] += np.dot(dLda.T,
-                                          np.reshape(x[:, t], (-1, 1)).T)
-            self.gradients['b'] += dLda.T
-        #return None
+        grad_a.reverse()  # Reverse a gradient so it goes forward_passs
+        grad_a = np.vstack(grad_a)  # stack gradien in array sequence
+        #store gradients in dictionary
+        self.gradients['V'] = grad_o.T @ h.T
+        h_aux = np.zeros(h.shape)  # Auxiliar h matrix that includes h_prev
+        h_aux[:, 0] = h_prev
+        h_aux[:, 1:] = h[:, 0:-1]
+        self.gradients['W'] = grad_a.T @ h_aux.T
+        self.gradients['U'] = grad_a.T @ x.T
+        self.gradients['b'] = np.sum(grad_a, axis=0)[:, np.newaxis]
+        self.gradients['c'] = np.sum(grad_o, axis=0)[:, np.newaxis]
         return self.gradients
 
+    def compute_loss(self, y, p):
+        return -np.sum(np.log(np.sum(y * p, axis=0)))
+
     def generate_text(self, Y):
-        # one hot encoding to text
-        ind = np.argmax(Y, axis=0)
         string = []
-        for i in range(ind.shape[0]):
-            string.append(rnn.ind_to_char[ind[i] + 1])
+        for i in range(Y.shape[1]):
+            string.append(self.ind_to_char[int(np.argmax(Y[:, i]))])
         return ''.join(string)
 
-    """
-    def compute_cost(self, y0, pt):
-        #h, pt = self.fwd_pass(x0, y0, h0, params)
+    def clip_gradients(self):
+        for key in self.gradients:
+            self.gradients[key] = np.maximum(
+                np.minimum(self.gradients[key], 5), -5)
 
-        # Cross entropy loss
-        loss = 0
-        for t in range(len(pt)):
-            y = np.reshape(y0.T[t], (-1, 1))
-            loss -= sum(np.log(np.dot(y.T, pt[t])))
-            if loss == np.inf:
-                print(
-                    'WARNING: Loss going to inf, handling by assigning zero value'
-                )
-                loss = 0
-        return loss
-    """
+    def ada_grad(self):
+        """ ADAGRad algorithm for optimization"""
+        for param in ['b', 'c', 'U', 'W', 'V']:
+            self.m_theta[
+                param] = self.m_theta[param] + self.gradients[param]**2
+            denom = (self.m_theta[param] + 1e-10)**-0.5
+            vars(self)[param] = vars(self)[param] - self.eta * np.multiply(
+                denom, self.gradients[param])
+
+    def SGD(self, num_epoch):
+        print("in SGD")
+        #h0 = np.zeros((self.m, 1))
+        smooth_loss_list = []
+        loss_list = []
+        smooth_loss = 0
+        num_iterations = 0
+        max_iterations = 100000
+        hprev = np.zeros((self.m))
+        for epoch in range(num_epoch):
+
+            print("-----------------")
+            print("epoch: ", epoch)
+            e = 0
+            if num_iterations >= max_iterations:
+                break
+            while e < len(self.book_data) - self.seq_length:
+                if num_iterations >= max_iterations:
+                    break
+                #inputs
+                X = self.book_data[e:e + self.seq_length]
+                #Labeled outputs
+                Y = self.book_data[e + 1:e + self.seq_length + 1]
+                x0 = self.one_hot_encoding(X)
+                y0 = self.one_hot_encoding(Y)
+                #forward_pass propagation of the RNN
+                probability_t, h, a = self.forward_pass(x0, hprev)
+                loss = self.compute_loss(y0, probability_t)
+
+                #backward propagation for gradients
+                self.gradients = self.back_propagation(y0, probability_t, h,
+                                                       hprev, a, x0)
+                #optimizing the RNN
+                self.clip_gradients()
+                self.ada_grad()
+
+                # for saving the best model
+                if num_iterations == 0:
+                    smooth_loss = loss
+                    best_rnn = copy.deepcopy(rnn)
+                    best_loss = copy.deepcopy(smooth_loss)
+                else:
+                    smooth_loss = 0.999 * smooth_loss + 0.001 * loss
+                    if smooth_loss < best_loss:
+                        best_rnn = copy.deepcopy(rnn)
+                        best_loss = smooth_loss
+                loss_list.append(loss)
+                smooth_loss_list.append(smooth_loss)
+
+                e = e + self.seq_length
+                if num_iterations == 0:
+                    print('loss at iteration ' + str(num_iterations) +
+                          ' is: ' + str(loss))
+                    input_ = rnn.one_hot_encoding(self.book_data[e])
+                    op = rnn.synthesize(input_, hprev, 200)
+                    print('\nGenerated text till now: ')
+                    print(rnn.generate_text(op))
+                    print('\n')
+
+                num_iterations += 1
+                if num_iterations % 5000 == 0:
+                    print('smooth loss at iteration ' + str(num_iterations) +
+                          'is: ' + str(smooth_loss))
+                if num_iterations % 10000 == 0:
+                    print('smooth loss at iteration ' + str(num_iterations) +
+                          'is: ' + str(smooth_loss))
+                    input_ = rnn.one_hot_encoding(self.book_data[e])
+                    op = rnn.synthesize(input_, hprev, 200)
+                    print('\nGenerated text till now: ')
+                    print(rnn.generate_text(op))
+                    print('\n')
+                #save last h for next iteration
+                hprev = h[:, -1]
+            hprev = np.zeros(hprev.shape)  #or np.shape(hprev)
+        print("Best loss: ", best_loss)
+        h_prev = np.zeros(rnn.m)
+        input_ = rnn.one_hot_encoding(self.book_data[-1])
+        op = best_rnn.synthesize(input_, h_prev, 1000)
+        print('\nBest model Generated text: ')
+        print(best_rnn.generate_text(op))
+        print('\n')
+        return loss_list, smooth_loss_list, num_iterations, best_rnn, best_loss
 
 
 def ComputeGradsNum(RNN_object, X, Y, h0, h=1e-4):
@@ -259,77 +233,72 @@ def ComputeGradsNum(RNN_object, X, Y, h0, h=1e-4):
             for j in range(vars(RNN_object)[parameter].shape[1]):
                 RNN_try = copy.deepcopy(RNN_object)
                 vars(RNN_try)[parameter][i, j] += h
-                loss2, _, _ = RNN_try.fwd_pass(X, Y, h0)
+                p_t2, _, _ = RNN_try.forward_pass(X, h0)
+                loss2 = RNN_try.compute_loss(Y, p_t2)
                 vars(RNN_try)[parameter][i, j] -= 2 * h
-                loss1, _, _ = RNN_try.fwd_pass(X, Y, h0)
+                p_t1, _, _ = RNN_try.forward_pass(X, h0)
+                loss1 = RNN_try.compute_loss(Y, p_t1)
+                #loss1, _, _ = RNN_try.fwd_pass(X, Y, h0)
                 GRADS[parameter][i, j] = (loss2 - loss1) / (2 * h)
     return GRADS
 
 
+def plot_losses(losses_list, smooth_losses_list, num_iterations):
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+    #ax[0].plot(num_iterations, np.squeeze(losses_list), label="Loss curve")
+    ax[0].plot(np.arange(len(losses_list)),
+               np.squeeze(losses_list),
+               label="Loss curve")
+    ax[0].legend()
+    ax[0].set(xlabel='Iterations', ylabel='Total Loss')
+    ax[0].grid()
+    ax[1].plot(np.arange(len(smooth_losses_list)),
+               np.squeeze(smooth_losses_list),
+               label="Smooth Loss curve")
+    ax[1].legend()
+    ax[1].set(xlabel='Iterations', ylabel='Smooth Loss')
+    ax[1].grid()
+    plt.show()
+
+
 f = open("goblet_book.txt", "r")
 book_data = f.read()
-#print(book_data)
 f.close()
 rnn = Vanilla_RNN(book_data)
+epochs = 3
+# 5. RNN using AdaGrad for 100 000 iteration and get fianl (best) result
+loss_list, smooth_loss_list, num_iterations, best_rnn, best_loss = rnn.SGD(
+    epochs)
+print("Best loss is: ", best_loss)
 
+plot_losses(loss_list, smooth_loss_list, num_iterations)
+
+#######
 # 3. synthesize text from randomly initialized rnn"
-x0 = rnn.one_hot_encoding('.')
-#0 = rnn.one_hot_encoding(book_data)
+e = 0
+X = rnn.book_data[e:e + rnn.seq_length]
+#Labeled outputs
+Y = rnn.book_data[e + 1:e + rnn.seq_length + 1]
+x0 = rnn.one_hot_encoding(X)
+y0 = rnn.one_hot_encoding(Y)
+#hidden state
+h0 = np.random.randn(rnn.m)
 
-h0 = np.random.randn(rnn.m, 1)
-n = 10
-
-Y = rnn.synthesize(x0, h0, n)
-print(rnn.generate_text(Y))
-
-# 4. Implement the forward & backward pass of back-prop
+# 4. Implement the forward_pass & backward pass of back-prop
 X = rnn.book_data[0:rnn.seq_length]
 Y = rnn.book_data[1:rnn.seq_length + 1]
 x0 = rnn.one_hot_encoding(X)
 y0 = rnn.one_hot_encoding(Y)
-h0 = np.zeros((rnn.m, 1))
+h0 = np.zeros((rnn.m))
 
-_, h, p = rnn.fwd_pass(x0, y0, h0)
-#rnn.back_propagation(x0, y0, h, p)
+p, h, a = rnn.forward_pass(x0, h0)
 
-newGRADS = rnn.back_propagation(x0, y0, h, p)
-
+newGRADS = rnn.back_propagation(y0, p, h, h0, a, x0)
 newGRADS_num = ComputeGradsNum(rnn, x0, y0, h0)
-
+#check gradients
 for parameter in ['b', 'c', 'U', 'W', 'V']:
     error = abs(newGRADS_num[parameter] - newGRADS[parameter])
     mean_error = np.mean(error < 1e-6)
     max_error = error.max()
     print('For '+parameter+', the % of absolute errors <1e-6 is '+str(mean_error*100)+ \
-          ' and the maximum is '+str(max_error))
-"""book_data = open('goblet_book.txt', 'r').read()
-
-book_chars = set(book_data)
-rnn = Vanilla_RNN(book_data)
-
-seq_length = 25
-X_chars = rnn.book_data[0:seq_length]
-Y_chars = rnn.book_data[1:(1 + seq_length)]
-
-myRNN = Vanilla_RNN(book_chars)
-
-X = rnn.book_data[0:myRNN.seq_length]
-Y = rnn.book_data[1:myRNN.seq_length + 1]
-x0 = rnn.one_hot_encoding(X)
-y0 = rnn.one_hot_encoding(Y)
-h0 = np.zeros((rnn.m, 1))
-
-h0 = np.zeros(shape=(rnn.m, 1))
-loss, h, p = rnn.fwd_pass(x0, y0, h0)
-
-newGRADS = rnn.back_propagation(x0, y0, h0, p)
-
-newGRADS_num = ComputeGradsNum(rnn, x0, y0, h0)
-
-for parameter in ['b', 'c', 'U', 'W', 'V']:
-    error = abs(newGRADS_num[parameter] - newGRADS[parameter])
-    mean_error = np.mean(error < 1e-6)
-    max_error = error.max()
-    print('For '+parameter+', the % of absolute errors <1e-6 is '+str(mean_error*100)+ \
-          ' and the maximum is '+str(max_error))
-"""
+          ' with the maximum being '+str(max_error))
