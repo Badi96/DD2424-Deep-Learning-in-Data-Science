@@ -272,7 +272,7 @@ loss_list, smooth_loss_list, num_iterations, best_rnn, best_loss = rnn.SGD(
 print("Best loss is: ", best_loss)
 
 plot_losses(loss_list, smooth_loss_list, num_iterations)
-
+"""
 #######
 # 3. synthesize text from randomly initialized rnn"
 e = 0
@@ -302,3 +302,4 @@ for parameter in ['b', 'c', 'U', 'W', 'V']:
     max_error = error.max()
     print('For '+parameter+', the % of absolute errors <1e-6 is '+str(mean_error*100)+ \
           ' with the maximum being '+str(max_error))
+"""
