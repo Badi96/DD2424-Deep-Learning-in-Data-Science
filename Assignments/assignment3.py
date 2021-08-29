@@ -4,7 +4,7 @@ import pickle
 from numpy.core.fromnumeric import var
 
 from numpy.lib.function_base import kaiser
-from functions import *
+#from functions import *
 import sys
 import matplotlib.pyplot as plt
 import random
@@ -19,6 +19,11 @@ def LoadBatch(filename):
         Y = (np.eye(10)[y]).T
     return X, Y, y
 
+def unpickle(file):
+    with open(file, 'rb') as fo:
+        dict = pickle.load(fo, encoding='bytes')
+
+    return dict
 
 def normalize_data(data, mean, std):
     if mean is None and std is None:
@@ -33,7 +38,7 @@ X_train, Y_train, y_train = LoadBatch('cifar-10-batches-py/data_batch_1')
 
 X_train, mean_train, std_train = normalize_data(X_train, None, None)
 
-batches = unpickle('cifar-10-batches-py/batches.meta')
+batches = unpickle('Datasets/cifar-10-batches-py/batches.meta')
 
 label_names = [
     label_name.decode('utf-8') for label_name in batches[b'label_names']

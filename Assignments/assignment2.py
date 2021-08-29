@@ -1,6 +1,6 @@
 import numpy as np
 import pickle
-from functions import *
+#from functions import *
 import sys
 import matplotlib.pyplot as plt
 import random
@@ -14,6 +14,13 @@ def LoadBatch(filename):
         y = dict[b"labels"]
         Y = (np.eye(10)[y]).T
     return X, Y, y
+
+
+def unpickle(file):
+    with open(file, 'rb') as fo:
+        dict = pickle.load(fo, encoding='bytes')
+
+    return dict
 
 
 def normalize_data(data, mean, std):
@@ -37,7 +44,7 @@ X_test, Y_test, y_test = LoadBatch('cifar-10-batches-py/data_batch_3')
 
 X_test = normalize_data(X_test, mean_train, std_train)[0]
 
-batches = unpickle('cifar-10-batches-py/batches.meta')
+batches = unpickle('Datasets/cifar-10-batches-py/batches.meta')
 
 label_names = [
     label_name.decode('utf-8') for label_name in batches[b'label_names']
