@@ -1,6 +1,5 @@
 import numpy as np
 import pickle
-#from functions import *
 import sys
 import matplotlib.pyplot as plt
 import random
