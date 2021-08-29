@@ -142,7 +142,6 @@ class Vanilla_RNN:
 
     def SGD(self, num_epoch):
         print("in SGD")
-        #h0 = np.zeros((self.m, 1))
         smooth_loss_list = []
         loss_list = []
         smooth_loss = 0
@@ -150,7 +149,6 @@ class Vanilla_RNN:
         max_iterations = 100000
         hprev = np.zeros((self.m))
         for epoch in range(num_epoch):
-
             print("-----------------")
             print("epoch: ", epoch)
             e = 0
